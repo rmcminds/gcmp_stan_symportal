@@ -1040,7 +1040,7 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
                      chains          = NChains,
                      seed            = seed,
                      chain_id        = (NChains * (i - 1) + (1:NChains)),
-                     pars            = c('rawerMicrobeNodeEffects', 'rawMicrobeNodeEffects', 'sampleTipEffects'),
+                     pars            = c('rawerMicrobeNodeEffects', 'rawMicrobeNodeEffects', 'rawMicrobeNodeEffects_tilde', 'sampleTipEffects'),
                      include         = FALSE,
                      init_r          = init_r,
                      sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
@@ -1050,7 +1050,7 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
                        data     = standat[[i]],
                        iter     = 25000,
                        seed     = seed,
-                       pars     = c('rawerMicrobeNodeEffects', 'rawMicrobeNodeEffects', 'sampleTipEffects'),
+                       pars     = c('rawerMicrobeNodeEffects', 'rawMicrobeNodeEffects', 'rawMicrobeNodeEffects_tilde', 'sampleTipEffects'),
                        include  = FALSE,
                        init_r   = init_r,
                        sample_file = file.path(subdir, 'samples.csv'))

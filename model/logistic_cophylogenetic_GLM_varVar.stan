@@ -39,10 +39,12 @@ data {
     real<lower=0> stDLogitHostPriorExpect;
     matrix[NEffects, sum(NSubPerFactor)] subfactLevelMat;
     matrix[NSamples, NEffects + NHostNodes + 1] modelMat;
+    matrix[NEffects + NHostNodes + 1, NEffects + NHostNodes + 1] modelMatRInv;
     int NSumTo0;
     matrix[NSumTo0, NEffects] baseLevelMat;
     matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsT;
     matrix[NMicrobeNodes + 1, NMicrobeTips] microbeTipAncestorsT;
+    matrix[NMicrobeNodes + 1, NMicrobeNodes + 1] microbeAncestorsRInvT;
     matrix[NHostNodes, NHostNodes] hostAncestors;
     matrix[NHostTips, NHostNodes] hostTipAncestors;
     matrix[NMicrobeNodes, NMicrobeNodes] microbeParents;
@@ -74,7 +76,7 @@ parameters {
     row_vector[NMicrobeNodes] phyloLogVarMultPrev;
     vector[NHostNodes] phyloLogVarMultADiv;
     matrix[NHostNodes, NMicrobeNodes] phyloLogVarMultRaw;
-    matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] rawMicrobeNodeEffects;
+    matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] rawMicrobeNodeEffects_tilde;
 }
 transformed parameters {
     simplex[2 * NSubfactors + 3] subfactProps;
@@ -89,6 +91,8 @@ transformed parameters {
     matrix<lower=0>[NHostNodes, NMicrobeNodes] phyloVarRaw;
     matrix<lower=0>[NHostNodes, NMicrobeNodes] phyloScales;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] scaledMicrobeNodeEffects;
+    matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] rawMicrobeNodeEffects
+        = modelMatRInv * (rawMicrobeNodeEffects_tilde * microbeAncestorsRInvT);
     real dirichSubFact_lpdf = 0;
     {
         int rawStart = 1;

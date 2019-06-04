@@ -13,6 +13,7 @@ library(ggplot2)
 library(RColorBrewer)
 library(picante)
 library(Matrix)
+library(MASS)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
@@ -41,7 +42,7 @@ hostOUAlphaPriorExpect <- 1.0
 microbeOUAlphaPriorExpect <- 1.0
 stDLogitHostPriorExpect <- 0.1
 stDLogitMicrobePriorExpect <- 0.1
-NTrees <- 3#10 ## number of random trees to sample and to fit the model to
+NTrees <- 2#10 ## number of random trees to sample and to fit the model to
 groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'),
                        date               = 'concatenated_date',
                        colony             = 'colony_name',
@@ -51,7 +52,7 @@ groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'
 
 ## Stan options
 init_r <- 2
-NCores <- 1#NTrees
+NCores <- 2#NTrees
 NChains <- 1 ## this is per tree; since I'm doing a large number of trees in parallel i'll just do one chain for each
 NIterations <- 2^(12 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
 max_treedepth <- 10 ## a warning will tell you if this needs to be increased
@@ -328,10 +329,12 @@ for (i in 1:NTrees) {
                          microbeTipNames                = microbeTipNames,
                          subfactLevelMat                = subfactLevelMat,
                          modelMat                       = cbind(modelMat, hostAncestorsExpanded[[i]]),
+                         modelMatRInv                   = ginv(qr.R(qr(cbind(modelMat, hostAncestorsExpanded[[i]] / ncol(hostAncestorsExpanded[[i]])))) / nrow(hostAncestorsExpanded[[i]])),
                          NSumTo0                        = NSumTo0,
                          baseLevelMat                   = baseLevelMat,
                          microbeAncestorsT              = t(microbeAncestors),
                          microbeTipAncestorsT           = t(cbind(1, microbeAncestors[1:NMicrobeTips, ])),
+                         microbeAncestorsRInvT          = t(ginv(qr.R(qr(cbind(1, rbind(0, microbeAncestors / ncol(microbeAncestors))))) / nrow(microbeAncestors))),
                          hostAncestors                  = hostAncestors[[i]],
                          hostTipAncestors               = hostAncestors[[i]][1:NHostTips, ],
                          microbeParents                 = microbeTreeDetails$pm,
