@@ -9,6 +9,7 @@ getTreeDetails <- function(tree) {
     NHRel <- NHs / maxNHs
     rownames(NHRel) <- tree$edge[,2]
     NHRel <- NHRel[edgeOrder,]
+    edgeLengthsRel <- apply(NHRel, 1, function(x) x[[2]] - x[[1]])
     logitNH <- logit(apply(NHRel[(length(tree$tip.label) + 1):(length(tree$tip.label) + tree$Nnode - 1),],
                            1,
                            function(x) (x[[2]] - x[[1]]) / (1 - x[[1]])))
@@ -18,13 +19,14 @@ getTreeDetails <- function(tree) {
                           tree$tip.label,
                           1)[-1, -1]
 
-    return(list(edgeOrder   = edgeOrder,
-                NHs         = NHs,
-                maxNHs      = maxNHs,
-                NHRel       = NHRel,
-                edgeLengths = edgeLengths,
-                logitNH     = logitNH,
-                pm          = pm))
+    return(list(edgeOrder      = edgeOrder,
+                NHs            = NHs,
+                maxNHs         = maxNHs,
+                NHRel          = NHRel,
+                edgeLengths    = edgeLengths,
+                edgeLengthsRel = edgeLengthsRel,
+                logitNH        = logitNH,
+                pm             = pm))
 }
 
 createAncestryMat <- function(NNodes, tree, NTips, tipNames) {
@@ -1040,7 +1042,7 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
                      chains          = NChains,
                      seed            = seed,
                      chain_id        = (NChains * (i - 1) + (1:NChains)),
-                     pars            = c('rawerMicrobeNodeEffects', 'rawMicrobeNodeEffects', 'rawMicrobeNodeEffects_tilde', 'sampleTipEffects'),
+                     pars            = c('rawerMicrobeNodeEffects', 'rawMicrobeNodeEffects', 'rawMicrobeNodeEffects_tilde', 'phyloLogVarMultPrev_tilde', 'phyloLogVarMultADiv_tilde', 'phyloLogVarMultRaw_tilde', 'sampleTipEffects'),
                      include         = FALSE,
                      init_r          = init_r,
                      sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
@@ -1050,7 +1052,7 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
                        data     = standat[[i]],
                        iter     = 25000,
                        seed     = seed,
-                       pars     = c('rawerMicrobeNodeEffects', 'rawMicrobeNodeEffects', 'rawMicrobeNodeEffects_tilde', 'sampleTipEffects'),
+                       pars     = c('rawerMicrobeNodeEffects', 'rawMicrobeNodeEffects', 'rawMicrobeNodeEffects_tilde', 'phyloLogVarMultPrev_tilde', 'phyloLogVarMultADiv_tilde', 'phyloLogVarMultRaw_tilde', 'sampleTipEffects'),
                        include  = FALSE,
                        init_r   = init_r,
                        sample_file = file.path(subdir, 'samples.csv'))
