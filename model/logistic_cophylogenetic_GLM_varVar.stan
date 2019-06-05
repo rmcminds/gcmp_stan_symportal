@@ -165,7 +165,6 @@ transformed parameters {
         = scales[2 * NSubfactors + 1]
           * sqrt(hostVarRaw
                  / mean(hostTipAncestors * hostVarRaw));
-
     phyloVarRaw
         = exp(hostAncestors
               * (phyloLogVarMultRaw
@@ -203,14 +202,14 @@ model {
     target += dirichlet_lpdf(metaVarProps | rep_vector(1, 3));
     target += exponential_lpdf(stDLogitMicrobe | 1.0);
     target += exponential_lpdf(stDLogitHost | 1.0);
-    target += normal_lpdf(phyloLogitVarMicrobe | 0,1);
-    target += normal_lpdf(phyloLogitVarHost | 0,1);
-    target += normal_lpdf(phyloLogVarMultPrev | 0,1);
-    target += normal_lpdf(phyloLogVarMultADiv | 0,1);
-    target += normal_lpdf(to_vector(phyloLogVarMultRaw) | 0,1);
-    target += normal_lpdf(to_vector(rawMicrobeNodeEffects)[2:] | 0,1);
+    target += std_normal_lpdf(phyloLogitVarMicrobe);
+    target += std_normal_lpdf(phyloLogitVarHost);
+    target += std_normal_lpdf(phyloLogVarMultPrev);
+    target += std_normal_lpdf(phyloLogVarMultADiv);
+    target += std_normal_lpdf(to_vector(phyloLogVarMultRaw));
+    target += std_normal_lpdf(to_vector(rawMicrobeNodeEffects)[2:]);
     target += logistic_lpdf(rawMicrobeNodeEffects[1,1] | 0,1);
-    target += normal_lpdf(to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),]) | 0,1);
+    target += std_normal_lpdf(to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),]));
     sampleTipEffects = modelMat * (scaledMicrobeNodeEffects * microbeTipAncestorsT);
     for (n in 1:NObs)
         logit_ratios[n] = sampleTipEffects[sampleNames[n], microbeTipNames[n]];
