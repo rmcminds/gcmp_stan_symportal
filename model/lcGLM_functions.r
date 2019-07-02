@@ -76,6 +76,26 @@ statusUpdate <- function(iter, N) {
     }
 }
 
+bridge_sampler_diag <- function(sf, df, warmup=0, repetitions = 1, method = "normal", cores = 1, use_neff = TRUE, maxiter = 1000, silent = FALSE, verbose = FALSE, ...) {
+    #concepts largely copied from bridge_sampler.stanreg
+    samples <- coda::as.mcmc.list(lapply(df, FUN = function(f) {
+        cat('Loading data\n')
+        nupars <- rstan::get_num_upars(sf)
+        #skip first cols ("lp__", "accept_stat__", "stepsize__", "treedepth__", "n_leapfrog__", "divergent__", "energy__") and all cols after the number of unconstrained params
+        coda::as.mcmc(as.matrix(data.table::fread(sep=',', cmd=paste0('grep -v "^#" "', f, '" | tail -n +', warmup+1), select = 8:(nupars+7))))
+    }))
+    lb <- rep(-Inf, ncol(samples[[1]]))
+    ub <- rep(Inf, ncol(samples[[1]]))
+    names(lb) <- names(ub) <- colnames(samples[[1]])
+    cat('Bridge sampling\n')
+    bridge_output <- bridge_sampler(samples = samples, log_posterior = bridgesampling:::.stan_log_posterior,
+                                    data = list(stanfit = sf), lb = lb, ub = ub, repetitions = repetitions,
+                                    method = method, cores = cores, use_neff = use_neff,
+                                    packages = "rstan", maxiter = maxiter, silent = silent,
+                                    verbose = verbose)
+    return(bridge_output)
+}
+
 summarizeLcGLM <- function(combineTrees    = T,
                            separateTrees   = T,
                            whichTrees      = NULL,

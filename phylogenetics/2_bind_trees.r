@@ -36,9 +36,9 @@ noMatches <- oldnames[is.na(newnames)]
 newnames[is.na(newnames)] <- noMatches
 
 HRtreesRelabeled <- HRtrees
+
 newnames <- sub(' .* ', '_', newnames)
 attr(HRtreesRelabeled, "TipLabel") <- sub(' ', '_', newnames)
-
 
 HRtreesConsolidated <- lapply(HRtreesRelabeled,
                               function(x) drop.tip(x, which(duplicated(attr(HRtreesRelabeled, "TipLabel")))))

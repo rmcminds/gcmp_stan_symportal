@@ -155,7 +155,6 @@ transformed parameters {
         = scales[2 * NSubfactors + 1]
           * sqrt(hostVarRaw
                  / mean(hostTipAncestors * hostVarRaw));
-
     phyloVarRaw
         = exp(hostAncestors
               * (phyloLogVarMultRaw
