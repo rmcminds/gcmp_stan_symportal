@@ -35,8 +35,6 @@ data {
     real<lower=0> aveStDMetaPriorExpect;
     real<lower=0> hostOUAlphaPriorExpect;
     real<lower=0> microbeOUAlphaPriorExpect;
-    real<lower=0> stDLogitMicrobePriorExpect;
-    real<lower=0> stDLogitHostPriorExpect;
     matrix[NEffects, sum(NSubPerFactor)] subfactLevelMat;
     matrix[NSamples, NEffects + NHostNodes + 1] modelMat;
     int NSumTo0;
@@ -67,10 +65,6 @@ parameters {
     real<lower=0> microbeOUAlpha;
     real<lower=0> aveStDMeta;
     simplex[3] metaVarProps;
-    real<lower=0> stDLogitMicrobe;
-    real<lower=0> stDLogitHost;
-    vector[NMicrobeNodes - NMicrobeTips] phyloLogitVarMicrobe;
-    vector[NHostNodes - NHostTips] phyloLogitVarHost;
     row_vector[NMicrobeNodes] phyloLogVarMultPrev;
     vector[NHostNodes] phyloLogVarMultADiv;
     matrix[NHostNodes, NMicrobeNodes] phyloLogVarMultRaw;
@@ -139,9 +133,7 @@ transformed parameters {
     newMicrobeNHs
         = makeNHMat(microbeParents,
                     NMicrobeTips,
-                    microbeLogitNH + stDLogitMicrobe
-                                     * stDLogitMicrobePriorExpect
-                                     * phyloLogitVarMicrobe);
+                    microbeLogitNH);
     microbeVarRaw
         = rescaleOU(newMicrobeNHs, microbeOUAlpha)'
           .* exp((phyloLogVarMultPrev
@@ -153,9 +145,7 @@ transformed parameters {
     newHostNHs
         = makeNHMat(hostParents,
                     NHostTips,
-                    hostLogitNH + stDLogitHost
-                                  * stDLogitHostPriorExpect
-                                  * phyloLogitVarHost);
+                    hostLogitNH);
     hostVarRaw
         = rescaleOU(newHostNHs, hostOUAlpha)
           .* exp(hostAncestors
@@ -194,27 +184,23 @@ transformed parameters {
 model {
     matrix[NSamples, NMicrobeTips] sampleTipEffects;
     vector[NObs] logit_ratios;
-    aveStD ~ exponential(1.0 / aveStDPriorExpect);
+    target += exponential_lpdf(aveStD | 1.0 / aveStDPriorExpect);
     target += dirichSubFact_lpdf;
-    stDProps ~ dirichlet(rep_vector(1, 2 * NFactors + 3));
-    hostOUAlpha ~ exponential(1.0 / hostOUAlphaPriorExpect);
-    microbeOUAlpha ~ exponential(1.0 / microbeOUAlphaPriorExpect);
-    aveStDMeta ~ exponential(1.0);
-    metaVarProps ~ dirichlet(rep_vector(1, 3));
-    stDLogitMicrobe ~ exponential(1.0);
-    stDLogitHost ~ exponential(1.0);
-    phyloLogitVarMicrobe ~ normal(0,1);
-    phyloLogitVarHost ~ normal(0,1);
-    phyloLogVarMultPrev ~ normal(0,1);
-    phyloLogVarMultADiv ~ normal(0,1);
-    to_vector(phyloLogVarMultRaw) ~ normal(0,1);
-    to_vector(rawMicrobeNodeEffects)[2:] ~ normal(0,1);
-    rawMicrobeNodeEffects[1,1] ~ logistic(0,1);
-    to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),]) ~ normal(0,1);
+    target += dirichlet_lpdf(stDProps | rep_vector(1, 2 * NFactors + 3));
+    target += exponential_lpdf(hostOUAlpha | 1.0 / hostOUAlphaPriorExpect);
+    target += exponential_lpdf(microbeOUAlpha | 1.0 / microbeOUAlphaPriorExpect);
+    target += exponential_lpdf(aveStDMeta | 1.0);
+    target += dirichlet_lpdf(metaVarProps | rep_vector(1, 3));
+    target += std_normal_lpdf(phyloLogVarMultPrev);
+    target += std_normal_lpdf(phyloLogVarMultADiv);
+    target += std_normal_lpdf(to_vector(phyloLogVarMultRaw));
+    target += std_normal_lpdf(to_vector(rawMicrobeNodeEffects)[2:]);
+    target += logistic_lpdf(rawMicrobeNodeEffects[1,1] | 0,1);
+    target += std_normal_lpdf(to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),]));
     sampleTipEffects = modelMat * (scaledMicrobeNodeEffects * microbeTipAncestorsT);
     for (n in 1:NObs)
         logit_ratios[n] = sampleTipEffects[sampleNames[n], microbeTipNames[n]];
-    present ~ bernoulli_logit(logit_ratios);
+    target += bernoulli_logit_lpmf(present | logit_ratios);
 }
 generated quantities {
     matrix[NSumTo0, NMicrobeNodes + 1] baseLevelEffects;

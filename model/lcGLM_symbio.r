@@ -16,14 +16,14 @@ library(Matrix)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
-source(file.path('scripts', 'lcGLM_functions.r'))
+source(file.path('gcmp_stan_symportal', 'model', 'lcGLM_functions.r'))
 
 
-divTreePath <- 'raw_data/symportal_plus_voolstraDB_aligned_FastTreeGTR.tree'
-hostTreePath <- 'raw_data/combined_trees.newick' #set of Bayesian draws of host species phylogeny
-mapfilePath <- 'raw_data/GCMP_symbiodinium_map3.txt' #mapping file
-fulltablePath <- 'raw_data/species_table.txt' #250 bp deblur otu table output
-modelPath <- 'scripts/logistic_cophylogenetic_GLM_varVar.stan' #stan model
+microbeTreePath <- 'output/symbio_phylo/profile_WU_fastmeBal_correlated_chronos.tree' #symportal profile tree
+hostTreePath <- 'output/host_phylo/combined_trees.newick' #set of Bayesian draws of host species phylogeny
+mapfilePath <- 'raw_data/occurence/GCMP_symbiodinium_map_r29.txt' #mapping file
+fulltablePath <- 'raw_data/occurence/species_table.txt' #symporal species table
+modelPath <- 'gcmp_stan_symportal/model/logistic_cophylogenetic_GLM_varVar.stan' #stan model
 seed <- 123
 timeLimit <- 30 * 24 * 60 * 60
 
@@ -51,7 +51,7 @@ groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'
 
 ## Stan options
 init_r <- 2
-NCores <- NTrees
+NCores <- 2 #NTrees
 NChains <- 1 ## this is per tree; since I'm doing a large number of trees in parallel i'll just do one chain for each
 NIterations <- 2^(12 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
 max_treedepth <- 10 ## a warning will tell you if this needs to be increased
@@ -105,13 +105,6 @@ fulltable <- t(read.table(fulltablePath,
                           row.names = 1,
                           check.names = F))
 
-profileDefs <- sapply(fulltable[nrow(fulltable),], function(x) {
-    profs <- strsplit(x, '; ')[[1]]
-    return(strsplit(profs[length(profs)], '/|-'))
-})
-profileMat <- t(sapply(names(profileDefs), function(x) as.numeric(unique(unlist(profileDefs)) %in% profileDefs[[x]])))
-colnames(profileMat) <- unique(unlist(profileDefs))
-
 newtable <- fulltable[-nrow(fulltable),] # last line in symportal file is not part of the table
 mode(newtable) <- 'numeric'
 ##
@@ -119,16 +112,7 @@ mode(newtable) <- 'numeric'
 ## import phylogenies
 hostTree <- read.tree(hostTreePath)
 hostTree <- .compressTipLabel(hostTree)
-divTree <- read.tree(divTreePath)
-divTree <- root(divTree,c('_R_KT389903','_R_DQ195357','_R_JN558110','_R_LC068842'), resolve.root=T)
-##
-
-divTreeFilt <- prune.sample(profileMat, divTree)
-profileMatFilt <- profileMat[,colnames(profileMat) %in% divTreeFilt$tip.label]
-profDM <- unifrac(profileMatFilt, divTreeFilt)
-
-microbeTree <- midpoint.root(fastme.bal(profDM))
-microbeTree.UM <- chronos(microbeTree)
+microbeTree <- read.tree(microbeTreePath)
 
 ## import mapping file
 map <- read.table(mapfilePath,
@@ -140,9 +124,36 @@ rownames(map) <- map[,'#SampleID']
 newmap <- filterfunction(map)
 ##
 
+####filter out species that i don't currently have a way to incorporate
+## identify unique host species in the data, and replace spaces with underscores
+initial.species <- gsub(' ', '_', levels(newmap[,sampleTipKey]))
+##
+
+## identify the Scleractinian species in the data that do not exist in the template tree
+initial.species.missing <- initial.species[!initial.species %in% grep(paste(c(attr(hostTree, "TipLabel"),
+                                                                              'Fungid',
+                                                                              'not_applicable'),
+                                                                            collapse = '|'),
+                                                                      initial.species,
+                                                                      ignore.case = T,
+                                                                      value = T)]
+initialGeneraOfUnknowns <- sapply(initial.species.missing, function(x) strsplit(x, '_')[[1]][[1]])
+##
+
+treeGenera <- c(unique(sapply(attr(hostTree, "TipLabel"), function(x) strsplit(x, '_')[[1]][[1]])), 'Fungid')
+
+for (i in initial.species.missing) {
+    if (!initialGeneraOfUnknowns[i] %in% treeGenera) {
+        newmap <- droplevels(newmap[newmap[,sampleTipKey] != i,])
+        cat(paste0('filtering out ', i))
+    }
+}
+####
+
+
 ## merge data and mapping file
 idx <- rownames(newtable)[rownames(newtable) %in% rownames(newmap) & rowSums(newtable) >= minCountSamp]
-y.old <- newtable[idx, colnames(newtable) %in% microbeTree.UM$tip.label]
+y.old <- newtable[idx, colnames(newtable) %in% microbeTree$tip.label]
 newermaptemp <- droplevels(newmap[idx,])
 ##
 
@@ -157,7 +168,7 @@ mode(ybinary) <- 'numeric'
 
 ## filter microbes that aren't in the minimum number of samples
 y <- ybinary[, colSums(ybinary) >= minSamps]
-finalMicrobeTree <- drop.tip(microbeTree.UM, microbeTree.UM$tip.label[!microbeTree.UM$tip.label %in% colnames(y)])
+finalMicrobeTree <- drop.tip(microbeTree, microbeTree$tip.label[!microbeTree$tip.label %in% colnames(y)])
 y <- y[, finalMicrobeTree$tip.label]
 ##
 
@@ -176,6 +187,8 @@ microbeAncestors <- createAncestryMat(NMicrobeNodes,
                                       microbeTips)
 colnames(microbeAncestors)[1:NMicrobeTips] <- rownames(microbeAncestors)[1:NMicrobeTips] <- paste0('t', microbeTips)
 ##
+
+
 
 ## melt the data into long format to feed to model, and generate summary numbers about samples
 senddat <- melt(y, varnames = c('sample', 'tip'), value.name = 'present')

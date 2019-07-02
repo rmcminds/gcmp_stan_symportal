@@ -22,7 +22,7 @@ subdir <- file.path(outdir, 'primary_sampling')
 load(file.path(subdir, 'setup.RData'))
 load(file.path(subdir, 'fit.RData'))
 
-source(file.path('scripts', 'lcGLM_functions.r'))
+source(file.path('gcmp_stan_symportal', 'lcGLM_functions.r'))
 
 ## consider the effects of nodes from different trees 'the same' if all of their descendants are the same.
 
