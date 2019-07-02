@@ -10,7 +10,6 @@ data {
     int NMicrobeNodes;
     int NMicrobeTips;
     int NFactors;
-    int NSubPerFactor[NFactors];
     int NEffects;
     int NHostNodes;
     int NHostTips;
@@ -21,10 +20,10 @@ data {
     real<lower=0> aveStDMetaPriorExpect;
     real<lower=0> hostOUAlphaPriorExpect;
     real<lower=0> microbeOUAlphaPriorExpect;
-    matrix[NEffects, sum(NSubPerFactor)] subfactLevelMat;
-    matrix[NSamples, NEffects + NHostNodes + 1] modelMat;
+    matrix[NEffects, NFactors] factLevelMat;
+    matrix[NSamples, NEffects + NHostNodes + 1] modelMat; //matrix will be used the same in the model but is not necessarily binary
     int NSumTo0;
-    matrix[NSumTo0, NEffects] baseLevelMat;
+    matrix[NSumTo0, NEffects] baseLevelMat; //categorical factors are better modeled with sum-to-zero contrasts, where there is one fewer parameter than the nubmer of levels in the factor. The expectation for the missing level is the sum of all the other effects, and this matrix is used to calculate it
     matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsT;
     matrix[NMicrobeNodes + 1, NMicrobeTips] microbeTipAncestorsT;
     matrix[NHostNodes, NHostNodes] hostAncestors;
@@ -32,18 +31,8 @@ data {
     matrix[NHostNodes, 2] hostNH;
     matrix[NMicrobeNodes, 2] microbeNH;
 }
-transformed data {
-    int NSubfactorGammas = 0;
-    int NSubfactors = sum(NSubPerFactor);
-    for(i in 1:NFactors) {
-        if(NSubPerFactor[i] > 1) {
-            NSubfactorGammas += NSubPerFactor[i] - 1;
-        }
-    }
-}
 parameters {
     real<lower=0> aveStD;
-    vector<lower=0>[2 * NSubfactorGammas] subfactPropsRaw;
     simplex[2 * NFactors + 3] stDProps;
     real<lower=0> hostOUAlpha;
     real<lower=0> microbeOUAlpha;
@@ -55,8 +44,7 @@ parameters {
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] rawMicrobeNodeEffects;
 }
 transformed parameters {
-    simplex[2 * NSubfactors + 3] subfactProps;
-    vector<lower=0>[2 * NSubfactors + 3] scales;
+    vector<lower=0>[2 * NFactors + 3] scales;
     vector<lower=0>[3] metaScales;
     row_vector<lower=0>[NMicrobeNodes] microbeVarRaw;
     row_vector<lower=0>[NMicrobeNodes] microbeScales;
@@ -65,48 +53,8 @@ transformed parameters {
     matrix<lower=0>[NHostNodes, NMicrobeNodes] phyloVarRaw;
     matrix<lower=0>[NHostNodes, NMicrobeNodes] phyloScales;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] scaledMicrobeNodeEffects;
-    real dirichSubFact_lpdf = 0;
-    {
-        int rawStart = 1;
-        int normStart = 1;
-        for (i in 1:NFactors) {
-            if(NSubPerFactor[i] > 1) {
-                real sum_gamma = 1 + sum(segment(subfactPropsRaw,
-                                                 rawStart,
-                                                 NSubPerFactor[i] - 1));
-                subfactProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                    = append_row(1, segment(subfactPropsRaw, rawStart, NSubPerFactor[i] - 1))
-                      / sum_gamma;
-                dirichSubFact_lpdf += -NSubPerFactor[i] * log(sum_gamma)
-                                      + dirichlet_lpdf(subfactProps[normStart:(normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
-                subfactProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                    = subfactProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                      * stDProps[i];
-                sum_gamma = 1 + sum(segment(subfactPropsRaw,
-                                            NSubfactorGammas + rawStart,
-                                            NSubPerFactor[i] - 1));
-                subfactProps[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
-                    = append_row(1, segment(subfactPropsRaw, NSubfactorGammas + rawStart, NSubPerFactor[i] - 1))
-                      / sum_gamma;
-                dirichSubFact_lpdf += -NSubPerFactor[i] * log(sum_gamma)
-                                      + dirichlet_lpdf(subfactProps[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
-                subfactProps[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
-                    = subfactProps[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
-                      * stDProps[NFactors + i];
-                rawStart += NSubPerFactor[i] - 1;
-            } else {
-                subfactProps[normStart]
-                    = stDProps[i];
-                subfactProps[NSubfactors + normStart]
-                    = stDProps[NFactors + i];
-            }
-            normStart += NSubPerFactor[i];
-        }
-    }
-    subfactProps[(2 * NSubfactors + 1):(2 * NSubfactors + 3)]
-        = stDProps[(2 * NFactors + 1):(2 * NFactors + 3)];
     scales
-        = sqrt((2 * NSubfactors + 3) * subfactProps)
+        = sqrt((2 * NFactors + 3) * stDProps)
           * aveStD;
     metaScales
         = sqrt(3 * metaVarProps)
@@ -126,7 +74,7 @@ transformed parameters {
               * (phyloLogVarMultADiv
                  * metaScales[2]));
     hostScales
-        = scales[2 * NSubfactors + 1]
+        = scales[2 * NFactors + 1]
           * sqrt(hostVarRaw
                  / mean(hostTipAncestors * hostVarRaw));
     phyloVarRaw
@@ -136,7 +84,7 @@ transformed parameters {
               * microbeAncestorsT)
           .* (hostVarRaw * microbeVarRaw);
     phyloScales
-        = scales[2 * NSubfactors + 2]
+        = scales[2 * NFactors + 2]
           * sqrt(phyloVarRaw
                  / mean(hostTipAncestors
                         * (phyloVarRaw
@@ -144,12 +92,12 @@ transformed parameters {
     scaledMicrobeNodeEffects
         = append_col(
                 append_row(1.0,
-                           append_row(subfactLevelMat * segment(scales, 1, NSubfactors),
+                           append_row(factLevelMat * segment(scales, 1, NFactors),
                                       hostScales)),
                 append_row(
                     append_row(
-                        scales[2 * NSubfactors + 3],
-                        subfactLevelMat * segment(scales, NSubfactors + 1, NSubfactors))
+                        scales[2 * NFactors + 3],
+                        factLevelMat * segment(scales, NFactors + 1, NFactors))
                     * microbeScales,
                     phyloScales))
           .* rawMicrobeNodeEffects;
@@ -158,7 +106,6 @@ model {
     matrix[NSamples, NMicrobeTips] sampleTipEffects;
     vector[NObs] logit_ratios;
     target += exponential_lpdf(aveStD | 1.0 / aveStDPriorExpect);
-    target += dirichSubFact_lpdf;
     target += dirichlet_lpdf(stDProps | rep_vector(1, 2 * NFactors + 3));
     target += exponential_lpdf(hostOUAlpha | 1.0 / hostOUAlphaPriorExpect);
     target += exponential_lpdf(microbeOUAlpha | 1.0 / microbeOUAlphaPriorExpect);
@@ -169,7 +116,7 @@ model {
     target += std_normal_lpdf(to_vector(phyloLogVarMultRaw));
     target += std_normal_lpdf(to_vector(rawMicrobeNodeEffects)[2:]);
     target += logistic_lpdf(rawMicrobeNodeEffects[1,1] | 0,1);
-    target += std_normal_lpdf(to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),]));
+    target += std_normal_lpdf(to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),])); //for symmetrical prior expectations, shrinkage needs to occur on the 'missing' level the same as for the others. This causes the marginal variance of all effects to be lower than expected; an adjustment for this is included in the model matrix prior to model fitting
     sampleTipEffects = modelMat * (scaledMicrobeNodeEffects * microbeTipAncestorsT);
     for (n in 1:NObs)
         logit_ratios[n] = sampleTipEffects[sampleNames[n], microbeTipNames[n]];
