@@ -1,3 +1,19 @@
+functions {
+    matrix getEdges(matrix pm, int NTips, vector tipH) {
+        matrix[rows(pm), 2] newNHs = rep_matrix(0, rows(pm), 2);
+        for (row in 1:(rows(pm) - NTips)) {
+            newNHs[NTips + row, 1] = pm[NTips + row,] * newNHs[,2];
+            newNHs[NTips + row, 2] = exp(log_inv_logit(logitNH[row])
+                                         + log(1 - newNHs[NTips + row, 1]))
+                                     + newNHs[NTips + row, 1];
+        }
+        for (row in 1:NTips) {
+            newNHs[row, 1] = pm[row,] * newNHs[,2];
+            newNHs[row, 2] = 1;
+        }
+        return newNHs;
+    }
+}
 data {
     int NSamples;
     int NObs;
@@ -25,6 +41,7 @@ data {
     row_vector[NMicrobeNodes] microbeEdges;
 }
 transformed data {
+    row_vector[NMicrobeNodes] logMicrobeEdges = log(microbeEdges);
     int NSubfactorGammas = 0;
     int NSubfactors = sum(NSubPerFactor);
     for(i in 1:NFactors) {
@@ -39,7 +56,7 @@ parameters {
     simplex[2 * NFactors + 3] stDProps;
     vector<lower=0>[6] stDsMeta;
     simplex[2] codivVsCophyVarProps[3];
-    row_vector[NMicrobeNodes] phyloLogVarMultPrev;
+    simplex[NMicrobeTips] microbeRatesRaw;
     row_vector[NMicrobeNodes] phyloLogVarDivPrev;
     vector[NHostNodes] phyloLogVarMultADiv;
     vector[NHostNodes] phyloLogVarDivADiv;
@@ -50,8 +67,9 @@ parameters {
 transformed parameters {
     simplex[2 * NSubfactors + 3] subfactProps;
     vector<lower=0>[2 * NSubfactors + 3] scales;
-    row_vector[NMicrobeNodes] microbeRateShifts;
     row_vector<lower=0>[NMicrobeNodes] microbeRates;
+    row_vector[NMicrobeNodes] microbeRateShifts;
+    row_vector[NMicrobeNodes] phyloLogVarMultPrev;
     row_vector[NMicrobeNodes] microbeDivergenceVariance;
     row_vector<lower=0>[NMicrobeNodes] microbeDivergence;
     row_vector<lower=0>[NMicrobeNodes] microbeScales;
@@ -109,21 +127,14 @@ transformed parameters {
     scales
         = sqrt((2 * NSubfactors + 3) * subfactProps)
           * aveStD;
+    microbeRates
+        = codivVsCophyVarProps[1,1] * (microbeRatesRaw * NMicrobeTips);
     microbeRateShifts
-        = sqrt(microbeEdges)
-          .* phyloLogVarMultPrev
-          * stDsMeta[1];
-    microbeRates
-        = microbeEdges
-          .* exp(microbeRateShifts
-                 * microbeAncestorsT);
-    microbeRates
-        = codivVsCophyVarProps[1,1]
-          * microbeRates
-          / mean(microbeRates * microbeTipAncestorsT[2:,]); //this normalization and the 5 other instances are a major source of computation that could potentially be eliminated to both speed up the model and improve identifiability.
-// sum(mR * mTA) = constant //(where constant is the length of the vector so mean would be 1)
-// make the parameter the vector equal to mR * mTA, then divide by mTA to get mR
-// this vector would need to be constrained to both sum to the constant AND have every element greater than zero (simplex and add len(vector)-1)
+        = (log(microbeRatesRaw) - logMicrobeEdges + log(NMicrobeTips))
+          / microbeAncestorsT;
+    phyloLogVarMultPrev = microbeRateShifts
+                          ./ sqrt(microbeEdges)
+                          / stDsMeta[1];
     microbeDivergenceVariance
         = sqrt(microbeEdges)
           .* phyloLogVarDivPrev
@@ -218,6 +229,7 @@ model {
         target += dirichlet_lpdf(codivVsCophyVarProps[i] | rep_vector(1,2));
     target += exponential_lpdf(stDsMeta | 1.0 / aveStDMetaPriorExpect);
     target += std_normal_lpdf(phyloLogVarMultPrev);
+    target += log(microbeRatesRaw);
     target += std_normal_lpdf(phyloLogVarMultADiv);
     target += std_normal_lpdf(to_vector(phyloLogVarMultRaw));
     target += std_normal_lpdf(phyloLogVarDivPrev);
