@@ -111,10 +111,7 @@ transformed parameters {
           * aveStD;
     microbeRateShifts
         = sqrt(microbeEdges)
-          .* phyloLogVarMultPrev;
-    microbeRateShifts
-        = microbeRateShifts
-          / sqrt(mean(square(microbeRateShifts) * microbeTipAncestorsT[2:,]))
+          .* phyloLogVarMultPrev
           * stDsMeta[1];
     microbeRates
         = microbeEdges
@@ -123,13 +120,13 @@ transformed parameters {
     microbeRates
         = codivVsCophyVarProps[1,1]
           * microbeRates
-          / mean(microbeRates * microbeTipAncestorsT[2:,]);
+          / mean(microbeRates * microbeTipAncestorsT[2:,]); //this normalization and the 5 other instances are a major source of computation that could potentially be eliminated to both speed up the model and improve identifiability.
+// sum(mR * mTA) = constant //(where constant is the length of the vector so mean would be 1)
+// make the parameter the vector equal to mR * mTA, then divide by mTA to get mR
+// this vector would need to be constrained to both sum to the constant AND have every element greater than zero (simplex and add len(vector)-1)
     microbeDivergenceVariance
         = sqrt(microbeEdges)
-          .* phyloLogVarDivPrev;
-    microbeDivergenceVariance
-        = microbeDivergenceVariance
-          / sqrt(mean(square(microbeDivergenceVariance) * microbeTipAncestorsT[2:,]))
+          .* phyloLogVarDivPrev
           * stDsMeta[2];
     microbeDivergence
         = exp(microbeDivergenceVariance
@@ -142,10 +139,7 @@ transformed parameters {
         = sqrt(microbeRates + microbeDivergence);
     hostRateShifts
         = sqrt(hostEdges)
-          .* phyloLogVarMultADiv;
-    hostRateShifts
-        = hostRateShifts
-          / sqrt(mean(hostTipAncestors * square(hostRateShifts)))
+          .* phyloLogVarMultADiv
           * stDsMeta[3];
     hostRates
         = hostEdges
@@ -157,10 +151,7 @@ transformed parameters {
           / mean(hostTipAncestors * hostRates);
     hostDivergenceVariance
         = sqrt(hostEdges)
-          .* phyloLogVarDivADiv;
-    hostDivergenceVariance
-        = hostDivergenceVariance
-          / sqrt(mean(hostTipAncestors * square(hostDivergenceVariance)))
+          .* phyloLogVarDivADiv
           * stDsMeta[4];
     hostDivergence
         = exp(hostAncestors
@@ -174,12 +165,7 @@ transformed parameters {
           * sqrt(hostRates + hostDivergence);
     cophyloRateShifts
         = sqrt(hostEdges * microbeEdges)
-          .* phyloLogVarMultRaw;
-    cophyloRateShifts
-        = cophyloRateShifts
-          / sqrt(mean(hostTipAncestors
-                      * square(cophyloRateShifts)
-                      * microbeTipAncestorsT[2:,]))
+          .* phyloLogVarMultRaw
           * stDsMeta[5];
     cophyloRates
         = hostRates * microbeRates
@@ -194,12 +180,7 @@ transformed parameters {
                  * microbeTipAncestorsT[2:,]);
     coDivergenceVariance
         = sqrt(hostEdges * microbeEdges)
-          .* phyloLogVarCodivRaw;
-    coDivergenceVariance
-        = coDivergenceVariance
-          / sqrt(mean(hostTipAncestors
-                      * square(coDivergenceVariance)
-                      * microbeTipAncestorsT[2:,]))
+          .* phyloLogVarCodivRaw
           * stDsMeta[6];
     coDivergence
         = exp(hostAncestors
