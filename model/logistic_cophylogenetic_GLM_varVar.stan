@@ -120,10 +120,7 @@ transformed parameters {
     microbeRates
         = codivVsCophyVarProps[1,1]
           * microbeRates
-          / mean(microbeRates * microbeTipAncestorsT[2:,]); //this normalization and the 5 other instances are a major source of computation that could potentially be eliminated to both speed up the model and improve identifiability.
-// sum(mR * mTA) = constant //(where constant is the length of the vector so mean would be 1)
-// make the parameter the vector equal to mR * mTA, then divide by mTA to get mR
-// this vector would need to be constrained to both sum to the constant AND have every element greater than zero (simplex and add len(vector)-1)
+          / mean(microbeRates * microbeTipAncestorsT[2:,]); //this normalization and the 5 other instances are a major source of computation that could potentially be eliminated to both speed up the model and improve identifiability. Easiest way to remove would be to abandon the dirichlet variance partitioning, and allow that these rate modifiers can increase total variance. Then variance partitioning can be calculated as a generated quantity.
     microbeDivergenceVariance
         = sqrt(microbeEdges)
           .* phyloLogVarDivPrev
