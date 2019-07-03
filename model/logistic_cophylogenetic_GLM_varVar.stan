@@ -37,9 +37,7 @@ parameters {
     real<lower=0> aveStD;
     vector<lower=0>[2 * NSubfactorGammas] subfactPropsRaw;
     simplex[2 * NFactors + 3] stDProps;
-    real<lower=0> aveStDMeta;
-    simplex[3] metaVarProps;
-    simplex[2] codivVsCophyMetaVarProps[3];
+    vector<lower=0>[6] stDsMeta;
     simplex[2] codivVsCophyVarProps[3];
     row_vector[NMicrobeNodes] phyloLogVarMultPrev;
     row_vector[NMicrobeNodes] phyloLogVarDivPrev;
@@ -52,7 +50,6 @@ parameters {
 transformed parameters {
     simplex[2 * NSubfactors + 3] subfactProps;
     vector<lower=0>[2 * NSubfactors + 3] scales;
-    vector<lower=0>[3] metaScales;
     row_vector[NMicrobeNodes] microbeRateShifts;
     row_vector<lower=0>[NMicrobeNodes] microbeRates;
     row_vector[NMicrobeNodes] microbeDivergenceVariance;
@@ -63,7 +60,6 @@ transformed parameters {
     vector[NHostNodes] hostDivergenceVariance;
     vector<lower=0>[NHostNodes] hostDivergence;
     vector<lower=0>[NHostNodes] hostScales;
-    matrix<lower=0>[NHostNodes, NMicrobeNodes] cophyloExpectedVariance;
     matrix[NHostNodes, NMicrobeNodes] cophyloRateShifts;
     matrix<lower=0>[NHostNodes, NMicrobeNodes] cophyloRates;
     matrix[NHostNodes, NMicrobeNodes] coDivergenceVariance;
@@ -113,17 +109,13 @@ transformed parameters {
     scales
         = sqrt((2 * NSubfactors + 3) * subfactProps)
           * aveStD;
-    metaScales
-        = sqrt(3 * metaVarProps)
-          * aveStDMeta;
     microbeRateShifts
         = sqrt(microbeEdges)
           .* phyloLogVarMultPrev;
     microbeRateShifts
         = microbeRateShifts
-          / mean(microbeRateShifts * microbeTipAncestorsT[2:,])
-          * metaScales[1]
-          * codivVsCophyMetaVarProps[1,1];
+          / sqrt(mean(square(microbeRateShifts) * microbeTipAncestorsT[2:,]))
+          * stDsMeta[1];
     microbeRates
         = microbeEdges
           .* exp(microbeRateShifts
@@ -137,9 +129,8 @@ transformed parameters {
           .* phyloLogVarDivPrev;
     microbeDivergenceVariance
         = microbeDivergenceVariance
-          / mean(microbeDivergenceVariance * microbeTipAncestorsT[2:,])
-          * metaScales[1]
-          * codivVsCophyMetaVarProps[1,2];
+          / sqrt(mean(square(microbeDivergenceVariance) * microbeTipAncestorsT[2:,]))
+          * stDsMeta[2];
     microbeDivergence
         = exp(microbeDivergenceVariance
               * microbeAncestorsT);
@@ -154,9 +145,8 @@ transformed parameters {
           .* phyloLogVarMultADiv;
     hostRateShifts
         = hostRateShifts
-          / mean(hostTipAncestors * hostRateShifts)
-          * metaScales[2]
-          * codivVsCophyMetaVarProps[2,1];
+          / sqrt(mean(hostTipAncestors * square(hostRateShifts)))
+          * stDsMeta[3];
     hostRates
         = hostEdges
           .* exp(hostAncestors
@@ -170,9 +160,8 @@ transformed parameters {
           .* phyloLogVarDivADiv;
     hostDivergenceVariance
         = hostDivergenceVariance
-          / mean(hostTipAncestors * hostDivergenceVariance)
-          * metaScales[2]
-          * codivVsCophyMetaVarProps[2,2];
+          / sqrt(mean(hostTipAncestors * square(hostDivergenceVariance)))
+          * stDsMeta[4];
     hostDivergence
         = exp(hostAncestors
               * hostDivergenceVariance);
@@ -183,16 +172,17 @@ transformed parameters {
     hostScales
         = scales[2 * NSubfactors + 1]
           * sqrt(hostRates + hostDivergence);
-    cophyloExpectedVariance
-        = hostRates
-          * microbeRates;
     cophyloRateShifts
         = sqrt(hostEdges * microbeEdges)
-          .* phyloLogVarMultRaw
-          * metaScales[3]
-          * codivVsCophyMetaVarProps[3,1];
+          .* phyloLogVarMultRaw;
+    cophyloRateShifts
+        = cophyloRateShifts
+          / sqrt(mean(hostTipAncestors
+                      * square(cophyloRateShifts)
+                      * microbeTipAncestorsT[2:,]))
+          * stDsMeta[5];
     cophyloRates
-        = cophyloExpectedVariance
+        = hostRates * microbeRates
           .* exp(hostAncestors
                  * cophyloRateShifts
                  * microbeAncestorsT);
@@ -204,9 +194,13 @@ transformed parameters {
                  * microbeTipAncestorsT[2:,]);
     coDivergenceVariance
         = sqrt(hostEdges * microbeEdges)
-          .* phyloLogVarCodivRaw
-          * metaScales[3]
-          * codivVsCophyMetaVarProps[3,2];
+          .* phyloLogVarCodivRaw;
+    coDivergenceVariance
+        = coDivergenceVariance
+          / sqrt(mean(hostTipAncestors
+                      * square(coDivergenceVariance)
+                      * microbeTipAncestorsT[2:,]))
+          * stDsMeta[6];
     coDivergence
         = exp(hostAncestors
               * coDivergenceVariance
@@ -240,11 +234,8 @@ model {
     target += dirichSubFact_lpdf;
     target += dirichlet_lpdf(stDProps | rep_vector(1, 2 * NFactors + 3));
     for (i in 1:3)
-        target += dirichlet_lpdf(codivVsCophyVarProps[i] += rep_vector(1,2));
-    target += exponential_lpdf(aveStDMeta | 1.0 / aveStDMetaPriorExpect);
-    target += dirichlet_lpdf(metaVarProps | rep_vector(1, 3));
-    for (i in 1:3)
-        target += dirichlet_lpdf(codivVsCophyMetaVarProps[i] | rep_vector(1,2));
+        target += dirichlet_lpdf(codivVsCophyVarProps[i] | rep_vector(1,2));
+    target += exponential_lpdf(stDsMeta | 1.0 / aveStDMetaPriorExpect);
     target += std_normal_lpdf(phyloLogVarMultPrev);
     target += std_normal_lpdf(phyloLogVarMultADiv);
     target += std_normal_lpdf(to_vector(phyloLogVarMultRaw));

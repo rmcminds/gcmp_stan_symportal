@@ -446,64 +446,6 @@ summarizeLcGLM <- function(combineTrees    = T,
                     start <- start + NSubPerFactor[[j]]
                 }
                 
-                cat('\n\tRaw meta-variance estimates\n\t')
-                cat(paste0(as.character(Sys.time()), '\n'))
-                
-                ## meta-variance partitioning
-                metaVarProps <- array(extract(fit[[i]],
-                                              pars       = 'metaVarProps',
-                                              permuted   = F,
-                                              inc_warmup = T),
-                                      dim = c(NMCSamples,
-                                              NChains,
-                                              3),
-                                      dimnames = list(sample  = NULL,
-                                                      chain   = NULL,
-                                                      effect  = c('Prevalence',
-                                                                  'ADiv',
-                                                                  'Specificty')))
-                metaVarPropsPlot <- NULL
-                for(j in 1:NChains) {
-                    metaVarPropsPlot <- rbind(metaVarPropsPlot, metaVarProps[(warmup + 1):NMCSamples, j,])
-                }
-                pdf(file   = file.path(currplotdir, 'metaVarProps_boxes.pdf'),
-                    width  = 7,
-                    height = 7)
-                boxplot(metaVarPropsPlot,
-                        cex.axis = 0.5,
-                        las      = 2)
-                graphics.off()
-                
-                save(metaVarProps, file = file.path(currdatadir, 'metaVarProps.RData'))
-                ##
-                
-                ## actual scales of metavariance
-                metaScales <- array(extract(fit[[i]],
-                                            pars       = 'metaScales',
-                                            permuted   = F,
-                                            inc_warmup = T),
-                                    dim = c(NMCSamples,
-                                            NChains,
-                                            3),
-                                    dimnames = list(sample  = NULL,
-                                                    chain   = NULL,
-                                                    effect  = c('Prevalence',
-                                                                'ADiv',
-                                                                'Specificty')))
-                metaScalesPlot <- NULL
-                for(j in 1:NChains) {
-                    metaScalesPlot <- rbind(metaScalesPlot, metaScales[(warmup + 1):NMCSamples, j,])
-                }
-                pdf(file   = file.path(currplotdir, 'metaScales_boxes.pdf'),
-                    width  = 7,
-                    height = 7)
-                boxplot(metaScalesPlot,
-                        cex.axis = 0.5,
-                        las      = 2)
-                graphics.off()
-                
-                save(metaScales, file = file.path(currdatadir, 'metaScales.RData'))
-                ##
         
             }, error = function(e) print(e))
         }

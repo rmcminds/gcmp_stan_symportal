@@ -36,9 +36,7 @@ minSamps <- 1 # minimum number of samples that a sequence variant is present in 
 
 ## model options
 aveStDPriorExpect <- 1.0
-aveStDMetaPriorExpect <- 0.1
-hostOUAlphaPriorExpect <- 1.0
-microbeOUAlphaPriorExpect <- 1.0
+aveStDMetaPriorExpect <- 1.0
 NTrees <- 10 ## number of random trees to sample and to fit the model to
 groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'),
                        date               = 'concatenated_date',
