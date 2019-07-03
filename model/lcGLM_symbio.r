@@ -345,14 +345,12 @@ for (i in 1:NTrees) {
                          microbeTipAncestorsT           = t(cbind(1, microbeAncestors[1:NMicrobeTips, ])),
                          hostAncestors                  = hostAncestors[[i]],
                          hostTipAncestors               = hostAncestors[[i]][1:NHostTips, ],
-                         hostNH                         = hostTreeDetails[[i]]$NHRel,
-                         microbeNH                      = microbeTreeDetails$NHRel,
+                         hostEdges                      = hostTreeDetails[[i]]$edgeLengths,
+                         microbeEdges                   = microbeTreeDetails$edgeLengths,
                          NHostNodes                     = NHostNodes,
                          NHostTips                      = NHostTips,
                          aveStDPriorExpect              = aveStDPriorExpect,
-                         aveStDMetaPriorExpect          = aveStDMetaPriorExpect,
-                         hostOUAlphaPriorExpect         = hostOUAlphaPriorExpect,
-                         microbeOUAlphaPriorExpect      = microbeOUAlphaPriorExpect)
+                         aveStDMetaPriorExpect          = aveStDMetaPriorExpect)
 }
 
 NMCSamples <- NIterations / thin
