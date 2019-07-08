@@ -25,6 +25,16 @@ data {
     row_vector[NMicrobeNodes] microbeEdges;
 }
 transformed data {
+    row_vector[NHostNodes] PDescHost
+        = rep_row_vector(1.0 / NHostTips, NHostTips)
+          * hostTipAncestors;
+    vector[NHostNodes] hostDivEdges
+        = rep_vector(1.0 / sum(PDescHost), NHostNodes);
+    vector[NMicrobeNodes] PDescMicrobe
+        = microbeTipAncestorsT[2:,]
+          * rep_vector(1.0 / NMicrobeTips, NMicrobeTips);
+    row_vector[NMicrobeNodes] microbeDivEdges
+        = rep_row_vector(1.0 / sum(PDescMicrobe), NMicrobeNodes);
     int NSubfactorGammas = 0;
     int NSubfactors = sum(NSubPerFactor);
     for(i in 1:NFactors) {
@@ -37,34 +47,27 @@ parameters {
     real<lower=0> aveStD;
     vector<lower=0>[2 * NSubfactorGammas] subfactPropsRaw;
     simplex[2 * NFactors + 3] stDProps;
-    vector<lower=0>[6] stDsMeta;
-    simplex[2] codivVsCophyVarProps[3];
+    real<lower=0> aveStDMeta;
+    simplex[2] hostDivVsTime;
+    simplex[2] microbeDivVsTime;
+    simplex[3] metaVarProps;
     row_vector[NMicrobeNodes] phyloLogVarMultPrev;
-    row_vector[NMicrobeNodes] phyloLogVarDivPrev;
     vector[NHostNodes] phyloLogVarMultADiv;
-    vector[NHostNodes] phyloLogVarDivADiv;
     matrix[NHostNodes, NMicrobeNodes] phyloLogVarMultRaw;
-    matrix[NHostNodes, NMicrobeNodes] phyloLogVarCodivRaw;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] rawMicrobeNodeEffects;
 }
 transformed parameters {
     simplex[2 * NSubfactors + 3] subfactProps;
     vector<lower=0>[2 * NSubfactors + 3] scales;
-    row_vector[NMicrobeNodes] microbeRateShifts;
-    row_vector<lower=0>[NMicrobeNodes] microbeRates;
-    row_vector[NMicrobeNodes] microbeDivergenceVariance;
-    row_vector<lower=0>[NMicrobeNodes] microbeDivergence;
+    vector<lower=0>[3] metaScales;
+    row_vector<lower=0>[NMicrobeNodes] microbeDivPlusTime;
+    row_vector<lower=0>[NMicrobeNodes] microbeVarRaw;
     row_vector<lower=0>[NMicrobeNodes] microbeScales;
-    vector[NHostNodes] hostRateShifts;
-    vector<lower=0>[NHostNodes] hostRates;
-    vector[NHostNodes] hostDivergenceVariance;
-    vector<lower=0>[NHostNodes] hostDivergence;
+    vector<lower=0>[NHostNodes] hostDivPlusTime;
+    vector<lower=0>[NHostNodes] hostVarRaw;
     vector<lower=0>[NHostNodes] hostScales;
-    matrix[NHostNodes, NMicrobeNodes] cophyloRateShifts;
-    matrix<lower=0>[NHostNodes, NMicrobeNodes] cophyloRates;
-    matrix[NHostNodes, NMicrobeNodes] coDivergenceVariance;
-    matrix<lower=0>[NHostNodes, NMicrobeNodes] coDivergence;
-    matrix<lower=0>[NHostNodes, NMicrobeNodes] coPhyloScales;
+    matrix<lower=0>[NHostNodes, NMicrobeNodes] phyloVarRaw;
+    matrix<lower=0>[NHostNodes, NMicrobeNodes] phyloScales;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] scaledMicrobeNodeEffects;
     real dirichSubFact_lpdf = 0;
     {
@@ -109,89 +112,46 @@ transformed parameters {
     scales
         = sqrt((2 * NSubfactors + 3) * subfactProps)
           * aveStD;
-    microbeRateShifts
-        = sqrt(microbeEdges)
-          .* phyloLogVarMultPrev
-          * stDsMeta[1];
-    microbeRates
-        = microbeEdges
-          .* exp(microbeRateShifts
+    metaScales
+        = sqrt(3 * metaVarProps)
+          * aveStDMeta;
+    microbeDivPlusTime
+        = microbeEdges * microbeDivVsTime[1]
+          + microbeDivEdges * microbeDivVsTime[2];
+    microbeVarRaw
+        = microbeDivPlusTime
+          .* exp((microbeDivPlusTime
+                  .* phyloLogVarMultPrev
+                  * metaScales[1])
                  * microbeAncestorsT);
-    microbeRates
-        = codivVsCophyVarProps[1,1]
-          * microbeRates
-          / mean(microbeRates * microbeTipAncestorsT[2:,]); //this normalization and the 5 other instances are a major source of computation that could potentially be eliminated to both speed up the model and improve identifiability. Easiest way to remove would be to abandon the dirichlet variance partitioning, and allow that these rate modifiers can increase total variance. Then variance partitioning can be calculated as a generated quantity.
-    microbeDivergenceVariance
-        = sqrt(microbeEdges)
-          .* phyloLogVarDivPrev
-          * stDsMeta[2];
-    microbeDivergence
-        = exp(microbeDivergenceVariance
-              * microbeAncestorsT);
-    microbeDivergence
-        = codivVsCophyVarProps[1,2]
-          * microbeDivergence
-          / mean(microbeDivergence * microbeTipAncestorsT[2:,]);
     microbeScales
-        = sqrt(microbeRates + microbeDivergence);
-    hostRateShifts
-        = sqrt(hostEdges)
-          .* phyloLogVarMultADiv
-          * stDsMeta[3];
-    hostRates
-        = hostEdges
+        = sqrt(microbeVarRaw
+               / (microbeVarRaw * PDescMicrobe));
+    hostDivPlusTime
+        = hostEdges * hostDivVsTime[1]
+          + hostDivEdges * hostDivVsTime[2];
+    hostVarRaw
+        = hostDivPlusTime
           .* exp(hostAncestors
-                 * hostRateShifts);
-    hostRates
-        = codivVsCophyVarProps[2,1]
-          * hostRates
-          / mean(hostTipAncestors * hostRates);
-    hostDivergenceVariance
-        = sqrt(hostEdges)
-          .* phyloLogVarDivADiv
-          * stDsMeta[4];
-    hostDivergence
-        = exp(hostAncestors
-              * hostDivergenceVariance);
-    hostDivergence
-        = codivVsCophyVarProps[2,2]
-          * hostDivergence
-          / mean(hostTipAncestors * hostDivergence);
+                 * (hostDivPlusTime
+                    .* phyloLogVarMultADiv
+                    * metaScales[2]));
     hostScales
         = scales[2 * NSubfactors + 1]
-          * sqrt(hostRates + hostDivergence);
-    cophyloRateShifts
-        = sqrt(hostEdges * microbeEdges)
-          .* phyloLogVarMultRaw
-          * stDsMeta[5];
-    cophyloRates
-        = hostRates * microbeRates
-          .* exp(hostAncestors
-                 * cophyloRateShifts
-                 * microbeAncestorsT);
-    cophyloRates
-        = codivVsCophyVarProps[3,1]
-          * cophyloRates
-          / mean(hostTipAncestors
-                 * cophyloRates
-                 * microbeTipAncestorsT[2:,]);
-    coDivergenceVariance
-        = sqrt(hostEdges * microbeEdges)
-          .* phyloLogVarCodivRaw
-          * stDsMeta[6];
-    coDivergence
+          * sqrt(hostVarRaw
+                 / (PDescHost * hostVarRaw));
+    phyloVarRaw
         = exp(hostAncestors
-              * coDivergenceVariance
-              * microbeAncestorsT);
-    coDivergence
-        = codivVsCophyVarProps[3,2]
-          * coDivergence
-          / mean(hostTipAncestors
-                 * coDivergence
-                 * microbeTipAncestorsT[2:,]);
-    coPhyloScales
+              * (phyloLogVarMultRaw
+                 * metaScales[3])
+              * microbeAncestorsT)
+          .* (hostVarRaw * microbeVarRaw);
+    phyloScales
         = scales[2 * NSubfactors + 2]
-          * sqrt(cophyloRates + coDivergence);
+          * sqrt(phyloVarRaw
+                 / (PDescHost
+                    * phyloVarRaw
+                    * PDescMicrobe));
     scaledMicrobeNodeEffects
         = append_col(
                 append_row(1.0,
@@ -202,7 +162,7 @@ transformed parameters {
                         scales[2 * NSubfactors + 3],
                         subfactLevelMat * segment(scales, NSubfactors + 1, NSubfactors))
                     * microbeScales,
-                    coPhyloScales))
+                    phyloScales))
           .* rawMicrobeNodeEffects;
 }
 model {
@@ -211,15 +171,13 @@ model {
     target += exponential_lpdf(aveStD | 1.0 / aveStDPriorExpect);
     target += dirichSubFact_lpdf;
     target += dirichlet_lpdf(stDProps | rep_vector(1, 2 * NFactors + 3));
-    for (i in 1:3)
-        target += dirichlet_lpdf(codivVsCophyVarProps[i] | rep_vector(1,2));
-    target += exponential_lpdf(stDsMeta | 1.0 / aveStDMetaPriorExpect);
+    target += exponential_lpdf(aveStDMeta | 1.0 / aveStDMetaPriorExpect);
+    target += dirichlet_lpdf(hostDivVsTime | rep_vector(1, 2));
+    target += dirichlet_lpdf(microbeDivVsTime | rep_vector(1, 2));
+    target += dirichlet_lpdf(metaVarProps | rep_vector(1, 3));
     target += std_normal_lpdf(phyloLogVarMultPrev);
     target += std_normal_lpdf(phyloLogVarMultADiv);
     target += std_normal_lpdf(to_vector(phyloLogVarMultRaw));
-    target += std_normal_lpdf(phyloLogVarDivPrev);
-    target += std_normal_lpdf(phyloLogVarDivADiv);
-    target += std_normal_lpdf(to_vector(phyloLogVarCodivRaw));
     target += std_normal_lpdf(to_vector(rawMicrobeNodeEffects)[2:]);
     target += logistic_lpdf(rawMicrobeNodeEffects[1,1] | 0,1);
     target += std_normal_lpdf(to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),]));

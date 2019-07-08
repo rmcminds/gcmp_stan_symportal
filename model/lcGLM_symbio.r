@@ -1,23 +1,37 @@
+args <- commandArgs(trailingOnly = TRUE)
+if(length(args) > 0) {
+    out_prefix <- args[[1]]
+    outdir <- file.path('output', paste(out_prefix, gsub(':', '-', gsub(' ', '_', Sys.time())), sep = '_'))
+} else {
+    outdir <- file.path('output', gsub(':', '-', gsub(' ', '_', Sys.time())))
+}
+
+dir.create(outdir)
+outfile <- file(file.path(outdir, 'runlog.log'), open = 'wt')
+sink(outfile, type = 'output', split = T)
+outfileerr <- file(file.path(outdir, 'runlogerr.log'), open = 'wt')
+sink(outfileerr, type = 'message')
+
 library(ape)
-library(phangorn)
-library(geosphere)
-library(rstan)
-library(geiger)
 library(phytools)
-library(shinystan)
-library(nlme)
+library(phangorn)
 library(reshape2)
-library(paleotree)
 library(parallel)
-library(ggplot2)
+library(rstan)
 library(RColorBrewer)
-library(picante)
-library(Matrix)
-rstan_options(auto_write = TRUE)
+library(paleotree)
+library(ggplot2)
+library(geosphere) ##not sure this is being used? would be for an implementation of geographic covariance
+library(geiger) ##?
+library(shinystan) ##?
+library(nlme) ##?
+library(picante) ##?
+library(Matrix)##?
+
+rstan_options(auto_write = FALSE)
 options(mc.cores = parallel::detectCores())
 
 source(file.path('gcmp_stan_symportal', 'model', 'lcGLM_functions.r'))
-
 
 microbeTreePath <- 'output/symbio_phylo/profile_WU_fastmeBal_correlated_chronos.tree' #symportal profile tree
 hostTreePath <- 'output/host_phylo/combined_trees.newick' #set of Bayesian draws of host species phylogeny
@@ -27,8 +41,6 @@ modelPath <- 'gcmp_stan_symportal/model/logistic_cophylogenetic_GLM_varVar.stan'
 seed <- 123
 timeLimit <- 30 * 24 * 60 * 60
 
-outdir <- file.path('output', gsub(':', '-', gsub(' ', '_', Sys.time())))
-
 ## filtration options
 minCountSamp <- 5 # minimum sequencing depth for a sample to be included
 minSamps <- 1 # minimum number of samples that a sequence variant is present in at the above threshold for it to be included
@@ -37,7 +49,7 @@ minSamps <- 1 # minimum number of samples that a sequence variant is present in 
 ## model options
 aveStDPriorExpect <- 1.0
 aveStDMetaPriorExpect <- 1.0
-NTrees <- 10 ## number of random trees to sample and to fit the model to
+NTrees <- 2 ## number of random trees to sample and to fit the model to
 groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'),
                        date               = 'concatenated_date',
                        colony             = 'colony_name',
@@ -49,10 +61,10 @@ groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'
 init_r <- 2
 NCores <- 2 #NTrees
 NChains <- 1 ## this is per tree; since I'm doing a large number of trees in parallel i'll just do one chain for each
-NIterations <- 2^(14 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
+NIterations <- 2^(12 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
 max_treedepth <- 10 ## a warning will tell you if this needs to be increased
 adapt_delta <- 0.8 ## increase this if you get 'divergences' - even one means your model fit sucks!
-thin <- 2^(3 - 1) ## NIterations / thin number of Monte Carlo samples from the fit
+thin <- 2^(2 - 1) ## NIterations / thin number of Monte Carlo samples from the fit
 ##
 
 ## define the set of genera that we think our unidentified fungid samples could belong to
