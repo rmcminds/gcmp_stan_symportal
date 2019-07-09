@@ -200,9 +200,9 @@ transformed parameters {
         scaledMicrobeNodeEffects[2:(NEffects + 1),1]
             = subfactLevelMat
               * segment(scales, 1, NSubfactors)
-              .* rawMicrobeNodeEffects[2:,1]; //samplewise factor alpha diversity
+              .* rawMicrobeNodeEffects[2:(NEffects + 1),1]; //samplewise factor alpha diversity
         scaledMicrobeNodeEffects[(NEffects + 2):,1]
-            = hostScales .* rawMicrobeNodeEffects[2:,1]; //host alpha diversity
+            = hostScales .* rawMicrobeNodeEffects[(NEffects + 2):,1]; //host alpha diversity
         scaledMicrobeNodeEffects[2:(NEffects + 1),2:]
             = subfactLevelMat
               * factScales
@@ -220,10 +220,11 @@ model {
     target += exponential_lpdf(aveStDMeta | 1.0 / aveStDMetaPriorExpect);
     target += dirichlet_lpdf(hostDivVsTime | rep_vector(1, 2));
     target += dirichlet_lpdf(microbeDivVsTime | rep_vector(1, 2));
-    target += dirichlet_lpdf(metaVarProps | rep_vector(1, 3));
+    target += dirichlet_lpdf(metaVarProps | rep_vector(1, NFactors + 3));
     target += std_normal_lpdf(phyloLogVarMultPrev);
     target += std_normal_lpdf(phyloLogVarMultADiv);
     target += std_normal_lpdf(to_vector(phyloLogVarMultRaw));
+    target += std_normal_lpdf(to_vector(phyloLogVarMultFacts));
     target += std_normal_lpdf(to_vector(rawMicrobeNodeEffects)[2:]);
     target += logistic_lpdf(rawMicrobeNodeEffects[1,1] | 0,1);
     target += std_normal_lpdf(to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),]));
