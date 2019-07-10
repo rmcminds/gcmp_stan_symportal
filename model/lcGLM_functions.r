@@ -937,20 +937,20 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
             setTimeLimit(timeLimit)
             tryCatch({
                 if(!variational) {
-                stan(file            = modelPath,
-                     data            = standat[[i]],
-                     control         = list(adapt_delta   = adapt_delta,
-                                            max_treedepth = max_treedepth),
-                     iter            = NIterations,
-                     thin            = thin,
-                     chains          = NChains,
-                     seed            = seed,
-                     chain_id        = (NChains * (i - 1) + (1:NChains)),
-                     pars            = c('rawMicrobeNodeEffects'),
-                     include         = FALSE,
-                     init_r          = init_r,
-                     sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
-                     diagnostic_file = file.path(subdir, paste0('diagnostics_chain', i, '.csv')))
+                sampling(object          = sm,
+                         data            = standat[[i]],
+                         control         = list(adapt_delta   = adapt_delta,
+                                                max_treedepth = max_treedepth),
+                         iter            = NIterations,
+                         thin            = thin,
+                         chains          = NChains,
+                         seed            = seed,
+                         chain_id        = (NChains * (i - 1) + (1:NChains)),
+                         pars            = c('rawMicrobeNodeEffects'),
+                         include         = FALSE,
+                         init_r          = init_r,
+                         sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
+                         diagnostic_file = file.path(subdir, paste0('diagnostics_chain', i, '.csv')))
                 } else {
                     Sys.sleep((i - 1) * 3 * 60)
                     vb(stan_model(file = modelPath),

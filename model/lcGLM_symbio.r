@@ -28,7 +28,7 @@ library(nlme) ##?
 library(picante) ##?
 library(Matrix)##?
 
-rstan_options(auto_write = FALSE)
+rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
 source(file.path('gcmp_stan_symportal', 'model', 'lcGLM_functions.r'))
@@ -366,6 +366,8 @@ for (i in 1:NTrees) {
 NMCSamples <- NIterations / thin
 warmup <- NMCSamples / 2
 ##
+
+sm <- stan_model(modelPath)
 
 ## run the model!
 runStanModel()
