@@ -147,6 +147,7 @@ transformed parameters {
     {
         row_vector[NMicrobeNodes] microbeDivPlusTime;
         vector[NHostNodes] hostDivPlusTime;
+        matrix[NHostNodes, NMicrobeNodes] bothDivPlusTime;
         row_vector[NMicrobeNodes] logMicrobeVarRaw;
         vector[NHostNodes] logHostVarRaw;
         matrix[NHostNodes, NMicrobeNodes] logPhyloVarRaw;
@@ -158,27 +159,35 @@ transformed parameters {
         hostDivPlusTime
             = hostEdges * hostDivVsTime[1]
               + hostDivEdges * hostDivVsTime[2];
+        bothDivPlusTime
+            = hostDivPlusTime
+              * microbeDivPlusTime
+              * NMicrobeNodes
+              * NHostNodes
+              / (NHostNodes + NMicrobeNodes);
         logMicrobeVarRaw
             = log(microbeDivPlusTime)
-              + (microbeDivPlusTime
+              + (sqrt(microbeDivPlusTime)
                  .* phyloLogVarMultPrev
                  * metaScales[NSubfactors + 1])
                 * microbeAncestorsTCont;
         logHostVarRaw
             = log(hostDivPlusTime)
               + hostAncestorsCont
-                * (hostDivPlusTime
+                * (sqrt(hostDivPlusTime)
                    .* phyloLogVarMultADiv
                    * metaScales[NSubfactors + 2]);
         logPhyloVarRaw
             = hostAncestorsCont
-                  * (phyloLogVarMultRaw
+                  * (sqrt(bothDivPlusTime)
+                     .* phyloLogVarMultRaw
                      * metaScales[NSubfactors + 3])
                   * microbeAncestorsTCont
               + rep_matrix(logHostVarRaw, NMicrobeNodes)
               + rep_matrix(logMicrobeVarRaw, NHostNodes);
         logFactVarRaw
             = (phyloLogVarMultFacts
+               .* rep_matrix(sqrt(microbeDivPlusTime), NSubfactors)
                .* rep_matrix(metaScales[1:NSubfactors], NMicrobeNodes))
               * microbeAncestorsTCont
               + rep_matrix(logMicrobeVarRaw, NSubfactors);
