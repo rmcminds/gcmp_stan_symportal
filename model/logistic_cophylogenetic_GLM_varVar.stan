@@ -41,12 +41,22 @@ transformed data {
         = rep_matrix(logPDescMicrobe, NHostNodes) + rep_matrix(logPDescHost, NMicrobeNodes);
     row_vector[NMicrobeNodes] microbeDivEdges
         = rep_row_vector(1.0 / sum(PDescMicrobe), NMicrobeNodes);
+    matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsTCont
+        = microbeAncestorsT;
+    matrix[NHostNodes, NHostNodes] hostAncestorsCont
+        = hostAncestors;
     int NSubfactorGammas = 0;
     int NSubfactors = sum(NSubPerFactor);
     for(i in 1:NFactors) {
         if(NSubPerFactor[i] > 1) {
             NSubfactorGammas += NSubPerFactor[i] - 1;
         }
+    }
+    for(i in 1:NMicrobeNodes) {
+        microbeAncestorsTCont[i,i] = 1.0 - exp(-microbeAncestorsTCont[i,i]);
+    }
+    for(i in 1:NHostNodes) {
+        hostAncestorsCont[i,i] = 1.0 - exp(-hostAncestorsCont[i,i]);
     }
 }
 parameters {
@@ -153,23 +163,24 @@ transformed parameters {
               + (microbeDivPlusTime
                  .* phyloLogVarMultPrev
                  * metaScales[NSubfactors + 1])
-                * microbeAncestorsT;
+                * microbeAncestorsTCont;
         logHostVarRaw
             = log(hostDivPlusTime)
-              + hostAncestors
+              + hostAncestorsCont
                 * (hostDivPlusTime
                    .* phyloLogVarMultADiv
                    * metaScales[NSubfactors + 2]);
         logPhyloVarRaw
-            = hostAncestors
+            = hostAncestorsCont
                   * (phyloLogVarMultRaw
                      * metaScales[NSubfactors + 3])
-                  * microbeAncestorsT
+                  * microbeAncestorsTCont
               + rep_matrix(logHostVarRaw, NMicrobeNodes)
               + rep_matrix(logMicrobeVarRaw, NHostNodes);
         logFactVarRaw
             = (phyloLogVarMultFacts
                .* rep_matrix(metaScales[1:NSubfactors], NMicrobeNodes))
+              * microbeAncestorsTCont
               + rep_matrix(logMicrobeVarRaw, NSubfactors);
         microbeScales
             = scales[2 * NSubfactors + 3]
