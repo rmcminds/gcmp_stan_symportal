@@ -45,6 +45,10 @@ transformed data {
         = microbeAncestorsT;
     matrix[NHostNodes, NHostNodes] hostAncestorsCont
         = hostAncestors;
+    real bothDivRescale
+        = NMicrobeTips
+          * NHostTips
+          / (NHostTips + NMicrobeTips);
     int NSubfactorGammas = 0;
     int NSubfactors = sum(NSubPerFactor);
     for(i in 1:NFactors) {
@@ -160,11 +164,9 @@ transformed parameters {
             = hostEdges * hostDivVsTime[1]
               + hostDivEdges * hostDivVsTime[2];
         bothDivPlusTime
-            = hostDivPlusTime
-              * microbeDivPlusTime
-              * NMicrobeTips
-              * NHostTips
-              / (NHostTips + NMicrobeTips);
+            = bothDivRescale
+              * hostDivPlusTime
+              * microbeDivPlusTime;
         logMicrobeVarRaw
             = log(microbeDivPlusTime)
               + (sqrt(microbeDivPlusTime)
