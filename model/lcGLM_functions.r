@@ -603,9 +603,9 @@ summarizeLcGLM <- function(combineTrees    = T,
             for(j in 1:NMCSamples) {
                 for(k in 1:NChains) {
                     phyloLogVarMultScaled[j,k,,] <- rbind(c(0,
-                                                            phyloLogVarMultPrev[j,k,] * metaScales[j,k,1]),
-                                                         cbind(phyloLogVarMultADiv[j,k,] * metaScales[j,k,2],
-                                                               phyloLogVarMultRaw[j,k,,] * metaScales[j,k,3]))
+                                                            phyloLogVarMultPrev[j,k,] * metaScales[j,k, NFactors + 1]),
+                                                         cbind(phyloLogVarMultADiv[j,k,] * metaScales[j,k, NFactors + 2],
+                                                               phyloLogVarMultRaw[j,k,,] * metaScales[j,k, NFactors + 3]))
                 }
             }
             
