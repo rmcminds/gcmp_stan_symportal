@@ -186,11 +186,9 @@ transformed parameters {
               + rep_matrix(logHostVarRaw, NMicrobeNodes)
               + rep_matrix(logMicrobeVarRaw, NHostNodes);
         logFactVarRaw
-            = diagonal_post_multiply(
-                diagonal_pre_multiply(
-                  metaScales[1:NSubfactors],
-                  phyloLogVarMultFacts),
-                sqrt(microbeDivPlusTime))
+            = metaScales[1:NSubfactors]
+              * sqrt(microbeDivPlusTime)
+              .* phyloLogVarMultFacts
               * microbeAncestorsTCont
               + rep_matrix(logMicrobeVarRaw, NSubfactors);
         microbeScales
