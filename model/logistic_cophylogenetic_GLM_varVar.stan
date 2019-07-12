@@ -162,9 +162,9 @@ transformed parameters {
         bothDivPlusTime
             = hostDivPlusTime
               * microbeDivPlusTime
-              * NMicrobeNodes
-              * NHostNodes
-              / (NHostNodes + NMicrobeNodes);
+              * NMicrobeTips
+              * NHostTips
+              / (NHostTips + NMicrobeTips);
         logMicrobeVarRaw
             = log(microbeDivPlusTime)
               + (sqrt(microbeDivPlusTime)
@@ -186,9 +186,11 @@ transformed parameters {
               + rep_matrix(logHostVarRaw, NMicrobeNodes)
               + rep_matrix(logMicrobeVarRaw, NHostNodes);
         logFactVarRaw
-            = (phyloLogVarMultFacts
-               .* rep_matrix(sqrt(microbeDivPlusTime), NSubfactors)
-               .* rep_matrix(metaScales[1:NSubfactors], NMicrobeNodes))
+            = diagonal_post_multiply(
+                diagonal_pre_multiply(
+                  metaScales[1:NSubfactors],
+                  phyloLogVarMultFacts),
+                sqrt(microbeDivPlusTime))
               * microbeAncestorsTCont
               + rep_matrix(logMicrobeVarRaw, NSubfactors);
         microbeScales
