@@ -45,22 +45,28 @@ transformed data {
         = microbeAncestorsT;
     matrix[NHostNodes, NHostNodes] hostAncestorsCont
         = hostAncestors;
-    real bothDivRescale
-        = NMicrobeTips
-          * NHostTips
-          / (NHostTips + NMicrobeTips);
+    vector[NHostNodes] logHostEdges = log(hostEdges);
+    row_vector[NMicrobeNodes] logMicrobeEdges = log(microbeEdges);
+    vector[NHostNodes] sqrtHostEdges = sqrt(hostEdges);
+    row_vector[NMicrobeNodes] sqrtMicrobeEdges = sqrt(microbeEdges);
+    matrix[NHostNodes, NMicrobeNodes] outerEdges
+        = sqrt(hostEdges
+               * microbeEdges
+               * NMicrobeTips
+               * NHostTips
+               / (NHostTips + NMicrobeTips));
     int NSubfactorGammas = 0;
     int NSubfactors = sum(NSubPerFactor);
+    for(i in 1:NMicrobeNodes) {
+        microbeAncestorsTCont[i,i] = 1.0 - exp(-microbeEdges[i]);
+    }
+    for(i in 1:NHostNodes) {
+        hostAncestorsCont[i,i] = 1.0 - exp(-hostEdges[i]);
+    }
     for(i in 1:NFactors) {
         if(NSubPerFactor[i] > 1) {
             NSubfactorGammas += NSubPerFactor[i] - 1;
         }
-    }
-    for(i in 1:NMicrobeNodes) {
-        microbeAncestorsTCont[i,i] = 1.0 - exp(-microbeAncestorsTCont[i,i]);
-    }
-    for(i in 1:NHostNodes) {
-        hostAncestorsCont[i,i] = 1.0 - exp(-hostAncestorsCont[i,i]);
     }
 }
 parameters {
@@ -68,8 +74,6 @@ parameters {
     vector<lower=0>[2 * NSubfactorGammas] subfactPropsRaw;
     simplex[2 * NFactors + 3] stDProps;
     real<lower=0> aveStDMeta;
-    simplex[2] hostDivVsTime;
-    simplex[2] microbeDivVsTime;
     simplex[NFactors + 3] metaVarProps;
     vector<lower=0>[NSubfactorGammas] subfactMetaPropsRaw;
     row_vector[NMicrobeNodes] phyloLogVarMultPrev;
@@ -149,39 +153,26 @@ transformed parameters {
         = sqrt((NSubfactors + 3) * subfactMetaProps)
           * aveStDMeta;
     {
-        row_vector[NMicrobeNodes] microbeDivPlusTime;
-        vector[NHostNodes] hostDivPlusTime;
-        matrix[NHostNodes, NMicrobeNodes] bothDivPlusTime;
         row_vector[NMicrobeNodes] logMicrobeVarRaw;
         vector[NHostNodes] logHostVarRaw;
         matrix[NHostNodes, NMicrobeNodes] logPhyloVarRaw;
         matrix[NSubfactors, NMicrobeNodes] logFactVarRaw;
         matrix[NHostNodes, NMicrobeNodes] phyloScales;
-        microbeDivPlusTime
-            = microbeEdges * microbeDivVsTime[1]
-              + microbeDivEdges * microbeDivVsTime[2];
-        hostDivPlusTime
-            = hostEdges * hostDivVsTime[1]
-              + hostDivEdges * hostDivVsTime[2];
-        bothDivPlusTime
-            = bothDivRescale
-              * hostDivPlusTime
-              * microbeDivPlusTime;
         logMicrobeVarRaw
-            = log(microbeDivPlusTime)
-              + (sqrt(microbeDivPlusTime)
+            = logMicrobeEdges
+              + (sqrtMicrobeEdges
                  .* phyloLogVarMultPrev
                  * metaScales[NSubfactors + 1])
                 * microbeAncestorsTCont;
         logHostVarRaw
-            = log(hostDivPlusTime)
+            = logHostEdges
               + hostAncestorsCont
-                * (sqrt(hostDivPlusTime)
+                * (sqrtHostEdges
                    .* phyloLogVarMultADiv
                    * metaScales[NSubfactors + 2]);
         logPhyloVarRaw
             = hostAncestorsCont
-                  * (sqrt(bothDivPlusTime)
+                  * (outerEdges
                      .* phyloLogVarMultRaw
                      * metaScales[NSubfactors + 3])
                   * microbeAncestorsTCont
@@ -189,7 +180,7 @@ transformed parameters {
               + rep_matrix(logMicrobeVarRaw, NHostNodes);
         logFactVarRaw
             = metaScales[1:NSubfactors]
-              * sqrt(microbeDivPlusTime)
+              * sqrtMicrobeEdges
               .* phyloLogVarMultFacts
               * microbeAncestorsTCont
               + rep_matrix(logMicrobeVarRaw, NSubfactors);
@@ -240,8 +231,6 @@ model {
     target += dirichSubFact_lpdf;
     target += dirichlet_lpdf(stDProps | rep_vector(1, 2 * NFactors + 3));
     target += exponential_lpdf(aveStDMeta | 1.0 / aveStDMetaPriorExpect);
-    target += dirichlet_lpdf(hostDivVsTime | rep_vector(1, 2));
-    target += dirichlet_lpdf(microbeDivVsTime | rep_vector(1, 2));
     target += dirichlet_lpdf(metaVarProps | rep_vector(1, NFactors + 3));
     target += std_normal_lpdf(phyloLogVarMultPrev);
     target += std_normal_lpdf(phyloLogVarMultADiv);
