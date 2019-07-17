@@ -81,7 +81,7 @@ parameters {
     matrix[NHostNodes, NMicrobeNodes] phyloLogVarMultRaw;
     matrix[NSubfactors, NMicrobeNodes] phyloLogVarMultFacts;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] rawMicrobeNodeEffects;
-    real<lower=-1, upper=1> varEffectCor;
+    vector<lower=-1, upper=1>[NSubfactors + 3] varEffectCor;
 }
 transformed parameters {
     simplex[2 * NSubfactors + 3] subfactProps;
@@ -93,7 +93,7 @@ transformed parameters {
     matrix<lower=0>[NSubfactors, NMicrobeNodes] factScales;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] scaledMicrobeNodeEffects;
     matrix[NEffects, NMicrobeNodes] correlatedFacts;
-    real<lower=0, upper=1> varEffectChol2 = sqrt(1 - varEffectCor^2);
+    vector<lower=0, upper=1>[NSubfactors + 3] varEffectChol2 = sqrt(1 - varEffectCor^2);
     real dirichSubFact_lpdf = 0;
     {
         int rawStart = 1;
@@ -212,22 +212,25 @@ transformed parameters {
         scaledMicrobeNodeEffects[1,1]
             = rawMicrobeNodeEffects[1,1]; //intercept
         scaledMicrobeNodeEffects[1,2:]
-            = microbeScales .* (varEffectCor * phyloLogVarMultPrev + varEffectChol2 * rawMicrobeNodeEffects[1,2:]); //microbe prevalence
+            = microbeScales .* (varEffectCor[NSubfactors + 1] * phyloLogVarMultPrev
+                                + varEffectChol2[NSubfactors + 1] * rawMicrobeNodeEffects[1,2:]); //microbe prevalence
         scaledMicrobeNodeEffects[2:(NEffects + 1),1]
             = subfactLevelMat
               * segment(scales, 1, NSubfactors)
               .* rawMicrobeNodeEffects[2:(NEffects + 1),1]; //samplewise factor alpha diversity
         scaledMicrobeNodeEffects[(NEffects + 2):,1]
-            = hostScales .* (varEffectCor * phyloLogVarMultADiv + varEffectChol2 * rawMicrobeNodeEffects[(NEffects + 2):,1]); //host alpha diversity
+            = hostScales .* (varEffectCor[NSubfactors + 2] * phyloLogVarMultADiv
+                             + varEffectChol2[NSubfactors + 2] * rawMicrobeNodeEffects[(NEffects + 2):,1]); //host alpha diversity
         correlatedFacts
-            = varEffectCor * (subfactLevelMat * phyloLogVarMultFacts)
-              + varEffectChol2 * rawMicrobeNodeEffects[2:(NEffects + 1),2:];
+            = subfactLevelMat * (varEffectCor[1:NSubfactors] .* phyloLogVarMultFacts)
+              + subfactLevelMat * varEffectChol2[1:NSubfactors] .* rawMicrobeNodeEffects[2:(NEffects + 1),2:];
         scaledMicrobeNodeEffects[2:(NEffects + 1),2:]
             = subfactLevelMat
               * factScales
               .* correlatedFacts; //samplewise factor microbe interactions
         scaledMicrobeNodeEffects[(NEffects + 2):,2:]
-            = phyloScales .* (varEffectCor * phyloLogVarMultRaw + varEffectChol2 * rawMicrobeNodeEffects[(NEffects + 2):,2:]); //host microbe interactions
+            = phyloScales .* (varEffectCor[NSubfactors + 3] * phyloLogVarMultRaw
+                              + varEffectChol2[NSubfactors + 3] * rawMicrobeNodeEffects[(NEffects + 2):,2:]); //host microbe interactions
     }
 }
 model {
