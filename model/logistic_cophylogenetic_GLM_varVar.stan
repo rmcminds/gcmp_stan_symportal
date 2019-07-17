@@ -58,10 +58,10 @@ transformed data {
     int NSubfactorGammas = 0;
     int NSubfactors = sum(NSubPerFactor);
     for(i in 1:NMicrobeNodes) {
-        microbeAncestorsTCont[i,i] = 1.0 - exp(-microbeEdges[i]);
+        microbeAncestorsTCont[i,i] = (1.0 - exp(-microbeEdges[i])) / sqrt(microbeEdges[i]);
     }
     for(i in 1:NHostNodes) {
-        hostAncestorsCont[i,i] = 1.0 - exp(-hostEdges[i]);
+        hostAncestorsCont[i,i] = (1.0 - exp(-hostEdges[i])) / sqrt(hostEdges[i]);
     }
     for(i in 1:NFactors) {
         if(NSubPerFactor[i] > 1) {
@@ -81,6 +81,7 @@ parameters {
     matrix[NHostNodes, NMicrobeNodes] phyloLogVarMultRaw;
     matrix[NSubfactors, NMicrobeNodes] phyloLogVarMultFacts;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] rawMicrobeNodeEffects;
+    real<lower=-1, upper=1> varEffectCor;
 }
 transformed parameters {
     simplex[2 * NSubfactors + 3] subfactProps;
@@ -91,6 +92,8 @@ transformed parameters {
     vector<lower=0>[NHostNodes] hostScales;
     matrix<lower=0>[NSubfactors, NMicrobeNodes] factScales;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] scaledMicrobeNodeEffects;
+    matrix[NEffects, NMicrobeNodes] correlatedFacts;
+    real<lower=0, upper=1> varEffectChol2 = sqrt(1 - varEffectCor^2);
     real dirichSubFact_lpdf = 0;
     {
         int rawStart = 1;
@@ -209,19 +212,22 @@ transformed parameters {
         scaledMicrobeNodeEffects[1,1]
             = rawMicrobeNodeEffects[1,1]; //intercept
         scaledMicrobeNodeEffects[1,2:]
-            = microbeScales .* rawMicrobeNodeEffects[1,2:]; //microbe prevalence
+            = microbeScales .* (varEffectCor * phyloLogVarMultPrev + varEffectChol2 * rawMicrobeNodeEffects[1,2:]); //microbe prevalence
         scaledMicrobeNodeEffects[2:(NEffects + 1),1]
             = subfactLevelMat
               * segment(scales, 1, NSubfactors)
               .* rawMicrobeNodeEffects[2:(NEffects + 1),1]; //samplewise factor alpha diversity
         scaledMicrobeNodeEffects[(NEffects + 2):,1]
-            = hostScales .* rawMicrobeNodeEffects[(NEffects + 2):,1]; //host alpha diversity
+            = hostScales .* (varEffectCor * phyloLogVarMultADiv + varEffectChol2 * rawMicrobeNodeEffects[(NEffects + 2):,1]); //host alpha diversity
+        correlatedFacts
+            = varEffectCor * (subfactLevelMat * phyloLogVarMultFacts)
+              + varEffectChol2 * rawMicrobeNodeEffects[2:(NEffects + 1),2:];
         scaledMicrobeNodeEffects[2:(NEffects + 1),2:]
             = subfactLevelMat
               * factScales
-              .* rawMicrobeNodeEffects[2:(NEffects + 1),2:]; //samplewise factor microbe interactions
+              .* correlatedFacts; //samplewise factor microbe interactions
         scaledMicrobeNodeEffects[(NEffects + 2):,2:]
-            = phyloScales .* rawMicrobeNodeEffects[(NEffects + 2):,2:]; //host microbe interactions
+            = phyloScales .* (varEffectCor * phyloLogVarMultRaw + varEffectChol2 * rawMicrobeNodeEffects[(NEffects + 2):,2:]); //host microbe interactions
     }
 }
 model {
@@ -238,7 +244,10 @@ model {
     target += std_normal_lpdf(to_vector(phyloLogVarMultFacts));
     target += std_normal_lpdf(to_vector(rawMicrobeNodeEffects)[2:]);
     target += logistic_lpdf(rawMicrobeNodeEffects[1,1] | 0,1);
-    target += std_normal_lpdf(to_vector(baseLevelMat * rawMicrobeNodeEffects[2:(NEffects + 1),]));
+    target += std_normal_lpdf(to_vector(baseLevelMat
+                                        * append_col(rawMicrobeNodeEffects[2:(NEffects + 1),1],
+                                                     correlatedFacts)));
+    target += uniform_lpdf(varEffectCor | -1,1);
     sampleTipEffects = modelMat * (scaledMicrobeNodeEffects * microbeTipAncestorsT);
     for (n in 1:NObs)
         logit_ratios[n] = sampleTipEffects[sampleNames[n], microbeTipNames[n]];
