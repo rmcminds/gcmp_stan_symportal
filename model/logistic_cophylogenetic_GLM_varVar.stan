@@ -93,7 +93,7 @@ transformed parameters {
     matrix<lower=0>[NSubfactors, NMicrobeNodes] factScales;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] scaledMicrobeNodeEffects;
     matrix[NEffects, NMicrobeNodes] correlatedFacts;
-    vector<lower=0, upper=1>[NSubfactors + 3] varEffectChol2 = sqrt(1 - varEffectCor^2);
+    vector<lower=0, upper=1>[NSubfactors + 3] varEffectChol2 = sqrt(1 - square(varEffectCor));
     real dirichSubFact_lpdf = 0;
     {
         int rawStart = 1;
@@ -222,8 +222,8 @@ transformed parameters {
             = hostScales .* (varEffectCor[NSubfactors + 2] * phyloLogVarMultADiv
                              + varEffectChol2[NSubfactors + 2] * rawMicrobeNodeEffects[(NEffects + 2):,1]); //host alpha diversity
         correlatedFacts
-            = subfactLevelMat * (varEffectCor[1:NSubfactors] .* phyloLogVarMultFacts)
-              + subfactLevelMat * varEffectChol2[1:NSubfactors] .* rawMicrobeNodeEffects[2:(NEffects + 1),2:];
+            = diag_post_multiply(subfactLevelMat, varEffectCor[1:NSubfactors]) * phyloLogVarMultFacts
+              + diag_pre_multiply(subfactLevelMat * varEffectChol2[1:NSubfactors], rawMicrobeNodeEffects[2:(NEffects + 1),2:]);
         scaledMicrobeNodeEffects[2:(NEffects + 1),2:]
             = subfactLevelMat
               * factScales
