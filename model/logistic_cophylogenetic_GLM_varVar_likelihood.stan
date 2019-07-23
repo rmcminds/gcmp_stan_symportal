@@ -269,7 +269,7 @@ model {
     matrix[NEffects + NHostNodes + 1, NMicrobeTips] scaledMicrobeNodeEffects;
     matrix[NSamples, NMicrobeTips] sampleTipEffects;
     vector[NObs] logit_ratios;
-
+/*
     target += rawVarJacobians;
     target += exponential_lpdf(aveStDRaw | 1.0);
     target += dirichSubFact_lpdf;
@@ -302,7 +302,7 @@ model {
     target += std_normal_lpdf(rawEffectsADiv);
     target += logistic_lpdf(intercept | 0,1);
     target += uniform_lpdf(varEffectCor | -1,1);
-
+*/
     scaledMicrobeNodeEffects[1,]
         = scaledMicrobePrevalence[1:NMicrobeTips]; //microbe prevalence
     scaledMicrobeNodeEffects[2:(NEffects + 1),]

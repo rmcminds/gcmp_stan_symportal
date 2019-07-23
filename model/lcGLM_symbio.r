@@ -47,8 +47,8 @@ minSamps <- 1 # minimum number of samples that a sequence variant is present in 
 ##
 
 ## model options
-aveStDPriorExpect <- 1.0
-aveStDMetaPriorExpect <- 1.0
+aveStDPriorExpect <- 1
+aveStDMetaPriorExpect <- 0.1
 NTrees <- 2 ## number of random trees to sample and to fit the model to
 groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'),
                        date               = 'concatenated_date',
@@ -58,7 +58,7 @@ groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'
 ##
 
 ## Stan options
-init_r <- 2
+init_r <- 0.00000001
 NCores <- 2 #NTrees
 NChains <- 1 ## this is per tree; since I'm doing a large number of trees in parallel i'll just do one chain for each
 NIterations <- 2^(12 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
@@ -241,6 +241,8 @@ sampleMap <- list()
 hostTreeSampleNumbers <- sample(1:length(hostTree), NTrees)
 hostTreesSampled <- list()
 hostTreeDetails <- list()
+hostAncestors <- list()
+hostAncestorsExpanded <- list()
 for(i in 1:NTrees) {
     sampleMap[[i]] <- newermap
     fungidSps <- grep('Fungid', levels(sampleMap[[i]][,sampleTipKey]))
@@ -264,25 +266,24 @@ for(i in 1:NTrees) {
     #filter the tree only contain the sampled (or assigned) species
     hostTreesSampled[[i]] <- ladderize(drop.tip(hostTree[[hostTreeSampleNumbers[[i]]]],
                                                 hostTree[[hostTreeSampleNumbers[[i]]]]$tip.label[!hostTree[[hostTreeSampleNumbers[[i]]]]$tip.label %in% levels(sampleMap[[i]][,sampleTipKey])]))
+                          
+    ## create ancestry matrices for each host tree
+    NHostTips <- length(hostTreesSampled[[i]]$tip.label)
+    NIntHostNodes <- hostTreesSampled[[i]]$Nnode
+    NHostNodes <- NIntHostNodes + NHostTips - 1
     
-    #get some tree stats for later use
-    hostTreeDetails[[i]] <- getTreeDetails(hostTreesSampled[[i]])
-}
-##
-
-## create ancestry matrices for each host tree
-NHostTips <- length(hostTreesSampled[[1]]$tip.label)
-NIntHostNodes <- hostTreesSampled[[1]]$Nnode
-NHostNodes <- NIntHostNodes + NHostTips - 1
-hostAncestors <- list()
-hostAncestorsExpanded <- list()
-for (i in 1:NTrees) {
-	hostAncestors[[i]] <- createAncestryMat(NHostNodes,
+    hostAncestors[[i]] <- createAncestryMat(NHostNodes,
                                             hostTreesSampled[[i]],
                                             NHostTips,
                                             hostTreesSampled[[i]]$tip.label)
     hostAncestorsExpanded[[i]] <- hostAncestors[[i]][as.character(sampleMap[[i]][,sampleTipKey]),]
     rownames(hostAncestorsExpanded[[i]]) <- rownames(sampleMap[[i]])
+    
+    #scale edge lengths so the mean root-to-tip distance is 1
+    hostTreesSampled[[i]]$edge.length <- hostTreesSampled[[i]]$edge.length / mean(hostAncestors[[i]][1:NHostTips,] %*% getTreeDetails(hostTreesSampled[[i]])$edgeLengths)
+    
+    #get some tree stats for later use
+    hostTreeDetails[[i]] <- getTreeDetails(hostTreesSampled[[i]])
 }
 ##
 
@@ -336,6 +337,7 @@ rownames(subfactLevelMat) <- colnames(modelMat)[2:ncol(modelMat)]
 
 ## collect data to feed to stan
 standat <- list()
+inits <- list()
 for (i in 1:NTrees) {
     standat[[i]] <- list(NSamples                       = NSamples,
                          NObs                           = NObs,
@@ -361,6 +363,27 @@ for (i in 1:NTrees) {
                          NHostTips                      = NHostTips,
                          aveStDPriorExpect              = aveStDPriorExpect,
                          aveStDMetaPriorExpect          = aveStDMetaPriorExpect)
+    PDescMicrobe = standat[[i]]$microbeTipAncestorsT[-1,] %*% rep(1/NMicrobeTips,NMicrobeTips)
+    PDescHost = rep(1/NHostTips,NHostTips) %*% standat[[i]]$hostTipAncestors
+    initMicrobeVarRaw = as.vector(standat[[i]]$microbeEdges * PDescMicrobe)
+    initHostVarRaw = as.vector(standat[[i]]$hostEdges * PDescHost)
+    initPhyloVarRaw = standat[[i]]$hostEdges %o% standat[[i]]$microbeEdges
+    for(h in 1:NHostNodes) {
+        for(m in 1:NMicrobeNodes) {
+            initPhyloVarRaw[h,m] <- initPhyloVarRaw[h,m] * PDescHost[h] * PDescMicrobe[m]
+        }
+    }
+    initFactVarRawVec = standat[[i]]$microbeEdges * PDescMicrobe
+    initFactVarRaw <- NULL
+    for(f in 1:NSubfactors) {
+        initFactVarRaw <- cbind(initFactVarRaw, initFactVarRawVec)
+    }
+    
+    inits[[i]] <- rep(list(list(microbeVarRaw = initMicrobeVarRaw,
+                                hostVarRaw = initHostVarRaw,
+                                phyloVarRaw =  as.vector(initPhyloVarRaw),
+                                factVarRaw = t(initFactVarRaw))),
+                      NChains)
 }
 
 NMCSamples <- NIterations / thin
@@ -370,7 +393,7 @@ warmup <- NMCSamples / 2
 sm <- stan_model(modelPath)
 
 ## run the model!
-runStanModel()
+runStanModel(optimizingInits = T)
 
 ## re-fit the model but shuffle the samples (to see if there are any biases generated by the sampling design)
 runStanModel(shuffleSamples = T)

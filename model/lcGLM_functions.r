@@ -483,8 +483,7 @@ summarizeLcGLM <- function(combineTrees    = T,
                                               NFactors + 3),
                                       dimnames = list(sample  = NULL,
                                                       chain   = NULL,
-                                                      effect  = c(paste0('Specificity.',
-                                                                         names(groupedFactors)),
+                                                      effect  = c(paste0('Specificity.',                                   names(groupedFactors)),
                                                                   'Prevalence',
                                                                   'ADiv',
                                                                   'host.specificty')))
@@ -513,8 +512,7 @@ summarizeLcGLM <- function(combineTrees    = T,
                                             NFactors + 3),
                                     dimnames = list(sample  = NULL,
                                                     chain   = NULL,
-                                                    effect  = c(paste0('Specificity.',
-                                                                       names(groupedFactors)),
+                                                    effect  = c(paste0('Specificity.',                                     names(groupedFactors)),
                                                                 'Prevalence',
                                                                 'ADiv',
                                                                 'Specificty')))
@@ -548,8 +546,7 @@ summarizeLcGLM <- function(combineTrees    = T,
                             NFactors + 3),
                     dimnames = list(sample  = NULL,
                                     chain   = NULL,
-                                    effect  = c(paste0('Specificity.',
-                                                       names(groupedFactors)),
+                                    effect  = c(paste0('Specificity.',                                                     names(groupedFactors)),
                                                 'Prevalence',
                                                 'ADiv',
                                                 'Specificty')))
@@ -603,9 +600,9 @@ summarizeLcGLM <- function(combineTrees    = T,
             for(j in 1:NMCSamples) {
                 for(k in 1:NChains) {
                     phyloLogVarMultScaled[j,k,,] <- rbind(c(0,
-                                                            phyloLogVarMultPrev[j,k,] * metaScales[j,k, NFactors + 1]),
-                                                         cbind(phyloLogVarMultADiv[j,k,] * metaScales[j,k, NFactors + 2],
-                                                               phyloLogVarMultRaw[j,k,,] * metaScales[j,k, NFactors + 3]))
+                                                            phyloLogVarMultPrev[j,k,] * metaScales[j,k,1]),
+                                                         cbind(phyloLogVarMultADiv[j,k,] * metaScales[j,k,2],
+                                                               phyloLogVarMultRaw[j,k,,] * metaScales[j,k,3]))
                 }
             }
             
@@ -886,7 +883,7 @@ makeDiagnosticPlots <- function(...) {
     
 }
 
-runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variational = F, ...) {
+runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variational = F, optimizing = F, optimizingInits = F, ...) {
     
     if(exists('fit')) {
         rm(fit)
@@ -896,6 +893,10 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
     if(variational) {
         NIterations <- NMCSamples <- round(1000 / NTrees)
         warmup <- 0
+    }
+    
+    if(optimizing | optimizingInits) {
+        sm_likelihood <- stan_model('gcmp_stan_symportal/model/logistic_cophylogenetic_GLM_varVar_likelihood.stan')
     }
     
     if(sum(noData, shuffleData, shuffleSamples) > 1) {
@@ -954,22 +955,7 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
         function(i) {
             setTimeLimit(timeLimit)
             tryCatch({
-                if(!variational) {
-                sampling(object          = sm,
-                         data            = standat[[i]],
-                         control         = list(adapt_delta   = adapt_delta,
-                                                max_treedepth = max_treedepth),
-                         iter            = NIterations,
-                         thin            = thin,
-                         chains          = NChains,
-                         seed            = seed,
-                         chain_id        = (NChains * (i - 1) + (1:NChains)),
-                         pars            = c('aveStD', 'stDProps', 'aveStDMeta', 'metaScales', 'hostDivVsTime', 'microbeDivVsTime', 'metaVarProps', 'subfactProps', 'subfactMetaProps', 'microbeNewEdges', 'hostNewEdges'),
-                         include         = TRUE,
-                         init_r          = init_r,
-                         sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
-                         diagnostic_file = file.path(subdir, paste0('diagnostics_chain', i, '.csv')))
-                } else {
+                if(variational) {
                     Sys.sleep((i - 1) * 3 * 60)
                     vb(stan_model(file = modelPath),
                        data           = standat[[i]],
@@ -980,6 +966,37 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
                        init_r         = init_r,
                        output_samples = NIterations,
                        sample_file    = file.path(subdir, paste0('samples_chain', i, '.csv')))
+                } else if(optimizing) {
+                    optimizing(object = sm_likelihood,
+                               data   = standat[[i]],
+                               seed   = seed,
+                               init   = inits[[i]][[1]],
+                               as_vector = FALSE)
+                } else {
+                    if(optimizingInits) {
+                        optinits <- optimizing(object = sm,
+                                               data   = standat[[i]],
+                                               seed   = seed,
+                                               init   = inits[[i]][[1]],
+                                               as_vector = FALSE)
+                        inits[[i]] <- rep(list(optinits[[1]]), NChains)
+                    }
+                    sampling(object          = sm,
+                         data            = standat[[i]],
+                         control         = list(adapt_delta   = adapt_delta,
+                                                max_treedepth = max_treedepth),
+                         iter            = NIterations,
+                         thin            = thin,
+                         chains          = NChains,
+                         seed            = seed,
+                         chain_id        = (NChains * (i - 1) + (1:NChains)),
+                         pars            = c('aveStD', 'stDProps', 'aveStDMeta', 'metaScales', 'metaVarProps', 'subfactProps', 'subfactMetaProps', 'microbeNewEdges', 'hostNewEdges'),
+                         include         = TRUE,
+                         #init            = 0,
+                         init            = inits[[i]],
+                         init_r          = init_r,
+                         sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
+                         diagnostic_file = file.path(subdir, paste0('diagnostics_chain', i, '.csv')))
                 }
             }, error = function(e) {
                    print(e)
