@@ -964,8 +964,9 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
                          chains          = NChains,
                          seed            = seed,
                          chain_id        = (NChains * (i - 1) + (1:NChains)),
-                         pars            = c('aveStD', 'stDProps', 'aveStDMeta', 'metaScales', 'hostDivVsTime', 'microbeDivVsTime', 'metaVarProps', 'subfactProps', 'subfactMetaProps', 'microbeNewEdges', 'hostNewEdges'),
+                         pars            = c('aveStD', 'stDProps', 'aveStDMeta', 'metaScales', 'metaVarProps', 'subfactProps', 'subfactMetaProps', 'microbeNewEdges', 'hostNewEdges'),
                          include         = TRUE,
+                         init = 0,
                          init_r          = init_r,
                          sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
                          diagnostic_file = file.path(subdir, paste0('diagnostics_chain', i, '.csv')))
