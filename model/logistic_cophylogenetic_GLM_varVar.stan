@@ -24,9 +24,9 @@ data {
 }
 transformed data {
     cov_matrix[NMicrobeNodes] microbeAncestorsLLInv
-        = inverse_spd(multiply_lower_tri_self_transpose(microbeAncestors));
+        = inverse_spd(tcrossprod(microbeAncestors));
     cov_matrix[NHostNodes] hostAncestorsLLInv
-        = inverse_spd(multiply_lower_tri_self_transpose(hostAncestors));
+        = inverse_spd(tcrossprod(hostAncestors));
     row_vector[NHostNodes] PDescHost
         = rep_row_vector(1.0 / NHostTips, NHostTips)
           * hostAncestors[1:NHostTips,];
@@ -84,9 +84,9 @@ transformed data {
                  / (NHostTips + NMicrobeTips))
           * microbeAncestorsCont';
     microbeAncestorsContInv
-        = inverse_spd(multiply_lower_tri_self_transpose(microbeAncestorsCont));
+        = inverse_spd(tcrossprod(microbeAncestorsCont));
     hostAncestorsContInv
-        = inverse_spd(multiply_lower_tri_self_transpose(hostAncestorsCont));
+        = inverse_spd(tcrossprod(hostAncestorsCont));
 }
 parameters {
     real<lower=0> aveStDRaw;
@@ -260,7 +260,7 @@ model {
     target += dirichlet_lpdf(metaVarProps | rep_vector(1, NFactors + 3));
     target += (- (NSubfactors + 1) * NMicrobeNodes * log(2*pi())
                - trace_quad_form(microbeAncestorsContInv,
-                                 append_row(rawMicrobePrevalence,
+                                 append_row(rawPhyloLogVarMultPrev,
                                             rawPhyloLogVarMultFacts)'))
               * 0.5; //matrix normal lpdf for log rate changes in microbe prevalence and factors
     target += multi_normal_cholesky_lpdf(rawPhyloLogVarMultADiv |
