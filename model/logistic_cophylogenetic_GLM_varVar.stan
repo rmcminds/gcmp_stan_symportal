@@ -313,7 +313,7 @@ model {
 generated quantities {
     vector[2 * NFactors + 3] stDProps = superScales / sum(superScales);
     vector[2 * NSubfactors + 3] subfactProps = scales / sum(superScales);
-    vector[2 * NFactors + 3] metaVarProps = superMetaScales / sum(superMetaScales);
+    vector[NFactors + 3] metaVarProps = superMetaScales / sum(superMetaScales);
     row_vector[NMicrobeNodes] microbeNewEdges
         = square(microbeScales / scales[2 * NSubfactors + 3]);
     vector[NHostNodes] hostNewEdges
