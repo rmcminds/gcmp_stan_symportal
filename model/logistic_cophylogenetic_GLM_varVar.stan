@@ -95,8 +95,8 @@ transformed data {
         = hostAncestorsCont / hostAncestors;
 }
 parameters {
-    vector<lower=-pi()/2, upper=pi()/2>[2 * NFactors + 3] superScales_unif;
-    vector<lower=-pi()/2, upper=pi()/2>[NFactors + 3] superMetaScales_unif;
+    vector<lower=0, upper=pi()/2>[2 * NFactors + 3] superScales_unif;
+    vector<lower=0, upper=pi()/2>[NFactors + 3] superMetaScales_unif;
     vector<lower=0>[2 * NSubfactorGammas] subScalesRaw;
     vector<lower=0>[NSubfactorGammas] subMetaScalesRaw;
     row_vector[NMicrobeNodes] scaledPhyloLogVarMultPrev;
@@ -180,9 +180,13 @@ transformed parameters {
             normStart += NSubPerFactor[i];
         }
     }
+    scales[(2 * NSubfactors + 1):(2 * NSubfactors + 3)]
+        = superScales[(2 * NFactors + 1):(2 * NFactors + 3)];
     scales
         = scales
           * aveStDPriorExpect;
+    metaScales[(NSubfactors + 1):(NSubfactors + 3)]
+        = superScales[(NFactors + 1):(NFactors + 3)];
     metaScales
         = metaScales
           * aveStDMetaPriorExpect;
