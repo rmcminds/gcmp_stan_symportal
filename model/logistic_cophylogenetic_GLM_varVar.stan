@@ -95,12 +95,10 @@ transformed data {
         = hostAncestorsCont / hostAncestors;
 }
 parameters {
-    real<lower=0> aveStDRaw;
-    vector<lower=0>[2 * NSubfactorGammas] subfactPropsRaw;
-    simplex[2 * NFactors + 3] stDProps;
-    real<lower=0> aveStDMetaRaw;
-    simplex[NFactors + 3] metaVarProps;
-    vector<lower=0>[NSubfactorGammas] subfactMetaPropsRaw;
+    vector<lower=-pi()/2, upper=pi()/2>[2 * NFactors + 3] superScales_unif;
+    vector<lower=-pi()/2, upper=pi()/2>[NFactors + 3] superMetaScales_unif;
+    vector<lower=0>[2 * NSubfactorGammas] subScalesRaw;
+    vector<lower=0>[NSubfactorGammas] subMetaScalesRaw;
     row_vector[NMicrobeNodes] scaledPhyloLogVarMultPrev;
     vector[NHostNodes] scaledPhyloLogVarMultADiv;
     matrix[NHostNodes, NMicrobeNodes] scaledPhyloLogVarMultRaw;
@@ -114,11 +112,9 @@ parameters {
     real<lower=-1, upper=1> varEffectCor;
 }
 transformed parameters {
-    real<lower=0> aveStD = aveStDRaw * aveStDPriorExpect;
-    real<lower=0> aveStDMeta = aveStDMetaRaw * aveStDMetaPriorExpect;
-    simplex[2 * NSubfactors + 3] subfactProps;
+    vector<lower=0>[2 * NFactors + 3] superScales = tan(superScales_unif);
+    vector<lower=0>[NFactors + 3] superMetaScales = tan(superMetaScales_unif);
     vector<lower=0>[2 * NSubfactors + 3] scales;
-    simplex[NSubfactors + 3] subfactMetaProps;
     vector<lower=0>[NSubfactors + 3] metaScales;
     row_vector[NMicrobeNodes] rawPhyloLogVarMultPrev;
     vector[NHostNodes] rawPhyloLogVarMultADiv;
@@ -139,61 +135,57 @@ transformed parameters {
         int normStart = 1;
         for (i in 1:NFactors) {
             if(NSubPerFactor[i] > 1) {
-                real sum_gamma = 1 + sum(segment(subfactPropsRaw,
+                real sum_gamma = 1 + sum(segment(subScalesRaw,
                                                  rawStart,
                                                  NSubPerFactor[i] - 1));
-                subfactProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                    = append_row(1, segment(subfactPropsRaw, rawStart, NSubPerFactor[i] - 1))
+                scales[normStart:(normStart - 1 + NSubPerFactor[i])]
+                    = append_row(1, segment(subScalesRaw, rawStart, NSubPerFactor[i] - 1))
                       / sum_gamma;
                 dirichSubFact_lpdf += lmultiply(-NSubPerFactor[i], sum_gamma)
-                                      + dirichlet_lpdf(subfactProps[normStart:(normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
-                subfactProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                    = subfactProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                      * stDProps[i];
-                sum_gamma = 1 + sum(segment(subfactPropsRaw,
+                                      + dirichlet_lpdf(scales[normStart:(normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
+                scales[normStart:(normStart - 1 + NSubPerFactor[i])]
+                    = scales[normStart:(normStart - 1 + NSubPerFactor[i])]
+                      * superScales[i];
+                sum_gamma = 1 + sum(segment(subScalesRaw,
                                             NSubfactorGammas + rawStart,
                                             NSubPerFactor[i] - 1));
-                subfactProps[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
-                    = append_row(1, segment(subfactPropsRaw, NSubfactorGammas + rawStart, NSubPerFactor[i] - 1))
+                scales[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
+                    = append_row(1, segment(subScalesRaw, NSubfactorGammas + rawStart, NSubPerFactor[i] - 1))
                       / sum_gamma;
                 dirichSubFact_lpdf += lmultiply(-NSubPerFactor[i], sum_gamma)
-                                      + dirichlet_lpdf(subfactProps[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
-                subfactProps[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
-                    = subfactProps[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
-                      * stDProps[NFactors + i];
-                sum_gamma = 1 + sum(segment(subfactMetaPropsRaw,
+                                      + dirichlet_lpdf(scales[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
+                scales[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
+                    = scales[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
+                      * superScales[NFactors + i];
+                sum_gamma = 1 + sum(segment(subMetaScalesRaw,
                                             rawStart,
                                             NSubPerFactor[i] - 1));
-                subfactMetaProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                    = append_row(1, segment(subfactMetaPropsRaw, rawStart, NSubPerFactor[i] - 1))
+                metaScales[normStart:(normStart - 1 + NSubPerFactor[i])]
+                    = append_row(1, segment(subMetaScalesRaw, rawStart, NSubPerFactor[i] - 1))
                       / sum_gamma;
                 dirichSubFact_lpdf += lmultiply(-NSubPerFactor[i], sum_gamma)
-                                      + dirichlet_lpdf(subfactMetaProps[normStart:(normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
-                subfactMetaProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                    = subfactMetaProps[normStart:(normStart - 1 + NSubPerFactor[i])]
-                      * metaVarProps[i];
+                                      + dirichlet_lpdf(metaScales[normStart:(normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
+                metaScales[normStart:(normStart - 1 + NSubPerFactor[i])]
+                    = metaScales[normStart:(normStart - 1 + NSubPerFactor[i])]
+                      * superMetaScales[i];
                 rawStart += NSubPerFactor[i] - 1;
             } else {
-                subfactProps[normStart]
-                    = stDProps[i];
-                subfactProps[NSubfactors + normStart]
-                    = stDProps[NFactors + i];
-                subfactMetaProps[normStart]
-                    = metaVarProps[i];
+                scales[normStart]
+                    = superScales[i];
+                scales[NSubfactors + normStart]
+                    = superScales[NFactors + i];
+                metaScales[normStart]
+                    = superMetaScales[i];
             }
             normStart += NSubPerFactor[i];
         }
     }
-    subfactProps[(2 * NSubfactors + 1):(2 * NSubfactors + 3)]
-        = stDProps[(2 * NFactors + 1):(2 * NFactors + 3)];
-    subfactMetaProps[(NSubfactors + 1):(NSubfactors + 3)]
-        = metaVarProps[(NFactors + 1):(NFactors + 3)];
     scales
-        = sqrt((2 * NFactors + 3) * subfactProps)
-          * aveStD;
+        = scales
+          * aveStDPriorExpect;
     metaScales
-        = sqrt((NFactors + 3) * subfactMetaProps)
-          * aveStDMeta;
+        = metaScales
+          * aveStDMetaPriorExpect;
     {
         row_vector[NMicrobeNodes] logMicrobeVarRaw;
         vector[NHostNodes] logHostVarRaw;
@@ -267,11 +259,7 @@ model {
     matrix[NEffects + NHostTips + 1, NMicrobeTips] scaledMicrobeNodeEffects;
     matrix[NSamples, NMicrobeTips] sampleTipEffects;
     vector[NObs] logit_ratios;
-    target += exponential_lpdf(aveStDRaw | 1.0);
     target += dirichSubFact_lpdf;
-    target += dirichlet_lpdf(stDProps | rep_vector(1, 2 * NFactors + 3));
-    target += exponential_lpdf(aveStDMetaRaw | 1.0);
-    target += dirichlet_lpdf(metaVarProps | rep_vector(1, NFactors + 3));
     target += (- (NSubfactors + 1) * NMicrobeNodes * log(2*pi())
                - trace_quad_form(microbeAncestorsContInv,
                                  append_row(rawPhyloLogVarMultPrev,
@@ -319,6 +307,9 @@ model {
     target += bernoulli_logit_lpmf(present | logit_ratios);
 }
 generated quantities {
+    vector[2 * NFactors + 3] stDProps = superScales / sum(superScales);
+    vector[2 * NSubfactors + 3] subfactProps = scales / sum(superScales);
+    vector[2 * NFactors + 3] metaVarProps = superMetaScales / sum(superMetaScales);
     row_vector[NMicrobeNodes] microbeNewEdges
         = square(microbeScales / scales[2 * NSubfactors + 3]);
     vector[NHostNodes] hostNewEdges
