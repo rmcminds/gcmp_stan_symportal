@@ -348,7 +348,7 @@ for (i in 1:NTrees) {
                          sampleNames                    = sampleNames,
                          microbeTipNames                = microbeTipNames,
                          subfactLevelMat                = subfactLevelMat,
-                         modelMat                       = cbind(modelMat, hostAncestorsExpanded[[i]][,1:NHostTips]),
+                         modelMat                       = cbind(modelMat[,-1], hostAncestorsExpanded[[i]][,1:NHostTips]),
                          NSumTo0                        = NSumTo0,
                          baseLevelMat                   = baseLevelMat,
                          microbeAncestors               = microbeAncestors,
