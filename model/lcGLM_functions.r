@@ -323,9 +323,9 @@ summarizeLcGLM <- function(combineTrees    = T,
                                                   chain   = NULL,
                                                   factor  = c(paste0('ADiv.', names(groupedFactors)),
                                                               paste0('Specificity.', names(groupedFactors)),
+                                                              'microbe.prevalence',
                                                               'ADiv.host',
-                                                              'host.specificity',
-                                                              'microbe.prevalence')))
+                                                              'host.specificity')))
                 save(stDProps, file = file.path(currdatadir, 'stDProps.RData'))
                 
                 allRes <- monitor(stDProps,
@@ -333,10 +333,10 @@ summarizeLcGLM <- function(combineTrees    = T,
                                   probs  = c(0.025, 0.5, 0.975),
                                   print  = F)
                 rownames(allRes) <- c(paste0('ADiv.', names(groupedFactors)),
-                                  paste0('Specificity.', names(groupedFactors)),
-                                  'ADiv.host',
-                                  'host.specificity',
-                                  'microbe.prevalence')
+                                      paste0('Specificity.', names(groupedFactors)),
+                                      'microbe.prevalence',
+                                      'ADiv.host',
+                                      'host.specificity')
                 cat('factor\t', file = file.path(currtabledir, 'stDProps.txt'))
                 write.table(allRes,
                             file   = file.path(currtabledir, 'stDProps.txt'),
@@ -352,14 +352,14 @@ summarizeLcGLM <- function(combineTrees    = T,
                                                ' ',
                                                c(paste0(names(groupedFactors), ' (ADiv)'),
                                                  paste0(names(groupedFactors), ' (Specificity)'),
+                                                 'Microbe prevalence',
                                                  'Host (ADiv)',
-                                                 'Host (Specificity)',
-                                                 'Microbe prevalence'))
+                                                 'Host (Specificity)'))
                                         
-                ADivInd <- c(1:NFactors, 2 * NFactors + 1)
-                specInd <- c((NFactors + 1):(2 * NFactors), 2 * NFactors + 2)
+                ADivInd <- c(1:NFactors, 2 * NFactors + 2)
+                specInd <- c((NFactors + 1):(2 * NFactors), 2 * NFactors + 3)
                 meds <- apply(stDPropsPlot, 2, median)
-                stDPropsPlot <- stDPropsPlot[, c(2 * NFactors + 3,
+                stDPropsPlot <- stDPropsPlot[, c(2 * NFactors + 1,
                                                  ADivInd[order(meds[ADivInd], decreasing = T)],
                                                  specInd[order(meds[specInd], decreasing = T)])]
                                            
@@ -395,9 +395,9 @@ summarizeLcGLM <- function(combineTrees    = T,
                                                       chain   = NULL,
                                                       factor  = c(paste0('ADiv.', unlist(groupedFactors)),
                                                                   paste0('Specificity.', unlist(groupedFactors)),
+                                                                  'microbe.prevalence',
                                                                   'ADiv.host',
-                                                                  'host.specificity',
-                                                                  'microbe.prevalence')))
+                                                                  'host.specificity')))
                 start <- 1
                 for (j in 1:NFactors) {
                     if(NSubPerFactor[[j]] > 1) {

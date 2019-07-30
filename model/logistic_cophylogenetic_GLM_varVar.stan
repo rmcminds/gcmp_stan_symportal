@@ -120,9 +120,8 @@ transformed parameters {
     vector[NHostNodes] rawPhyloLogVarMultADiv;
     matrix[NHostNodes, NMicrobeNodes] rawPhyloLogVarMultRaw;
     matrix[NSubfactors, NMicrobeNodes]  rawPhyloLogVarMultFacts;
-    row_vector<lower=0>[NMicrobeNodes] microbeScales;
-    vector<lower=0>[NHostNodes] hostScales;
-    matrix<lower=0>[NSubfactors, NMicrobeNodes] factScales;
+    row_vector[NMicrobeNodes] microbeNewEdges;
+    vector[NHostNodes] hostNewEdges;
     matrix[NHostNodes, NMicrobeNodes] rawHostMicrobeSpecificity;
     matrix[NEffects, NMicrobeNodes] rawMicrobeEffectSpecificity;
     vector[NHostNodes] rawHostADiv;
@@ -195,11 +194,20 @@ transformed parameters {
         vector[NHostNodes] logHostVarRaw;
         matrix[NHostNodes, NMicrobeNodes] logPhyloVarRaw;
         matrix[NSubfactors, NMicrobeNodes] logFactVarRaw;
+        row_vector[NMicrobeNodes] microbeScales;
+        vector[NHostNodes] hostScales;
         matrix[NHostNodes, NMicrobeNodes] phyloScales;
+        matrix[NSubfactors, NMicrobeNodes] factScales;
         logMicrobeVarRaw
             = scaledPhyloLogVarMultPrev + logMicrobeEdges;
+        microbeNewEdges
+            = exp(logMicrobeVarRaw
+                  - log_sum_exp(logPDescMicrobe + logMicrobeVarRaw));
         logHostVarRaw
             = scaledPhyloLogVarMultADiv + logHostEdges;
+        hostNewEdges
+            = exp(logHostVarRaw
+                  - log_sum_exp(logPDescHost + logHostVarRaw));
         logPhyloVarRaw
             = scaledPhyloLogVarMultRaw
               + rep_matrix(logHostVarRaw, NMicrobeNodes)
@@ -207,17 +215,15 @@ transformed parameters {
         logFactVarRaw
             = scaledPhyloLogVarMultFacts + rep_matrix(logMicrobeVarRaw, NSubfactors);
         microbeScales
-            = scales[2 * NSubfactors + 3]
-              * sqrt(exp(logMicrobeVarRaw
-                         - log_sum_exp(logPDescMicrobe + logMicrobeVarRaw))
+            = scales[2 * NSubfactors + 1]
+              * sqrt(microbeNewEdges
                      * microbeAncestors');
         hostScales
-            = scales[2 * NSubfactors + 1]
-              * sqrt(hostAncestors
-                     * exp(logHostVarRaw
-                           - log_sum_exp(logPDescHost + logHostVarRaw)));
-        phyloScales
             = scales[2 * NSubfactors + 2]
+              * sqrt(hostAncestors
+                     * hostNewEdges);
+        phyloScales
+            = scales[2 * NSubfactors + 3]
               * sqrt(hostAncestors
                      * exp(logPhyloVarRaw
                            - log_sum_exp(logPDescBoth + logPhyloVarRaw))
@@ -299,10 +305,6 @@ generated quantities {
     vector[2 * NFactors + 3] stDProps = superScales / sum(superScales);
     vector[2 * NSubfactors + 3] subfactProps = scales / sum(superScales);
     vector[NFactors + 3] metaVarProps = superMetaScales / sum(superMetaScales);
-    row_vector[NMicrobeNodes] microbeNewEdges
-        = square(microbeScales / scales[2 * NSubfactors + 3]);
-    vector[NHostNodes] hostNewEdges
-        = square(hostScales / scales[2 * NSubfactors + 1]);
     matrix[NSumTo0, NMicrobeNodes + 1] baseLevelEffects
         = baseLevelMat * append_col(scaledEffectsADiv,
                                     scaledMicrobeEffectSpecificity - rep_matrix(scaledEffectsADiv, NMicrobeNodes));
