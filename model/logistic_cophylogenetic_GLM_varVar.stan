@@ -185,7 +185,7 @@ transformed parameters {
         = scales
           * aveStDPriorExpect;
     metaScales[(NSubfactors + 1):(NSubfactors + 3)]
-        = superScales[(NFactors + 1):(NFactors + 3)];
+        = superMetaScales[(NFactors + 1):(NFactors + 3)];
     metaScales
         = metaScales
           * aveStDMetaPriorExpect;
