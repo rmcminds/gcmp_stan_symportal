@@ -143,7 +143,7 @@ transformed parameters {
                 dirichSubFact_lpdf += lmultiply(-NSubPerFactor[i], sum_gamma)
                                       + dirichlet_lpdf(scales[normStart:(normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
                 scales[normStart:(normStart - 1 + NSubPerFactor[i])]
-                    = scales[normStart:(normStart - 1 + NSubPerFactor[i])]
+                    = sqrt(scales[normStart:(normStart - 1 + NSubPerFactor[i])])
                       * superScales[i];
                 sum_gamma = 1 + sum(segment(subScalesRaw,
                                             NSubfactorGammas + rawStart,
@@ -154,7 +154,7 @@ transformed parameters {
                 dirichSubFact_lpdf += lmultiply(-NSubPerFactor[i], sum_gamma)
                                       + dirichlet_lpdf(scales[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
                 scales[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
-                    = scales[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])]
+                    = sqrt(scales[(NSubfactors + normStart):(NSubfactors + normStart - 1 + NSubPerFactor[i])])
                       * superScales[NFactors + i];
                 sum_gamma = 1 + sum(segment(subMetaScalesRaw,
                                             rawStart,
@@ -165,7 +165,7 @@ transformed parameters {
                 dirichSubFact_lpdf += lmultiply(-NSubPerFactor[i], sum_gamma)
                                       + dirichlet_lpdf(metaScales[normStart:(normStart - 1 + NSubPerFactor[i])] | rep_vector(1, NSubPerFactor[i]));
                 metaScales[normStart:(normStart - 1 + NSubPerFactor[i])]
-                    = metaScales[normStart:(normStart - 1 + NSubPerFactor[i])]
+                    = sqrt(metaScales[normStart:(normStart - 1 + NSubPerFactor[i])])
                       * superMetaScales[i];
                 rawStart += NSubPerFactor[i] - 1;
             } else {
@@ -302,9 +302,9 @@ model {
     target += bernoulli_logit_lpmf(present | logit_ratios);
 }
 generated quantities {
-    vector[2 * NFactors + 3] stDProps = superScales / sum(superScales);
-    vector[2 * NSubfactors + 3] subfactProps = scales / sum(superScales);
-    vector[NFactors + 3] metaVarProps = superMetaScales / sum(superMetaScales);
+    vector[2 * NFactors + 3] stDProps = square(superScales) / sum(square(superScales));
+    vector[2 * NSubfactors + 3] subfactProps = square(scales) / sum(square(superScales));
+    vector[NFactors + 3] metaVarProps = square(superMetaScales) / sum(square(superMetaScales));
     matrix[NSumTo0, NMicrobeNodes + 1] baseLevelEffects
         = baseLevelMat * append_col(scaledEffectsADiv,
                                     scaledMicrobeEffectSpecificity - rep_matrix(scaledEffectsADiv, NMicrobeNodes));
