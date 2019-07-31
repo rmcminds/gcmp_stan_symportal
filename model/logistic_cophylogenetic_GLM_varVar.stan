@@ -51,13 +51,9 @@ transformed data {
         = log(hostEdges);
     row_vector[NMicrobeNodes] logMicrobeEdges
         = log(microbeEdges);
-    vector[NHostNodes] sqrtHostEdges
-        = sqrt(hostEdges);
-    row_vector[NMicrobeNodes] sqrtMicrobeEdges
-        = sqrt(microbeEdges);
     row_vector[NMicrobeNodes] rawMicrobeVarScales;
     vector[NHostNodes] rawHostVarScales;
-    matrix[NHostNodes, NMicrobeNodes] outerEdges;
+    matrix[NHostNodes, NMicrobeNodes] rawHostMicrobeVarScales;
     int NSubfactorGammas
         = 0;
     int NSubfactors
@@ -74,17 +70,14 @@ transformed data {
         }
     }
     rawMicrobeVarScales
-        = sqrtMicrobeEdges * microbeAncestorsCont';
+        = sqrt(microbeEdges * microbeAncestors');
     rawHostVarScales
-        = hostAncestorsCont * sqrtHostEdges;
-    outerEdges
-        = hostAncestorsCont
-          * sqrt(hostEdges
-                 * microbeEdges
-                 * NMicrobeTips
-                 * NHostTips
-                 / (NHostTips + NMicrobeTips))
-          * microbeAncestorsCont';
+        = sqrt(hostAncestors * hostEdges);
+    rawHostMicrobeVarScales
+        = sqrt(hostAncestors
+               * hostEdges
+               * microbeEdges
+               * microbeAncestors');
     microbeAncestorsContInv
         = inverse_spd(tcrossprod(microbeAncestorsCont));
     hostAncestorsContInv
@@ -256,7 +249,7 @@ transformed parameters {
                - varEffectCor * hostAncestorsContXInv * rawHostADiv)
               / varEffectChol2;
         rawPhyloLogVarMultRaw
-            = (scaledPhyloLogVarMultRaw ./ outerEdges / metaScales[NSubfactors + 3]
+            = (scaledPhyloLogVarMultRaw ./ rawHostMicrobeVarScales / metaScales[NSubfactors + 3]
                - varEffectCor * hostAncestorsContXInv * rawHostMicrobeSpecificity * microbeAncestorsContXInvT)
               / varEffectChol2;
     }
