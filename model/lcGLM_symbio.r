@@ -62,8 +62,8 @@ init_r <- 2
 NCores <- 2 #NTrees
 NChains <- 1 ## this is per tree; since I'm doing a large number of trees in parallel i'll just do one chain for each
 NIterations <- 2^(12 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
-max_treedepth <- 10 ## a warning will tell you if this needs to be increased
-adapt_delta <- 0.8 ## increase this if you get 'divergences' - even one means your model fit sucks!
+max_treedepth <- 15 ## a warning will tell you if this needs to be increased
+adapt_delta <- 0.99 ## increase this if you get 'divergences' - even one means your model fit sucks!
 thin <- 2^(2 - 1) ## NIterations / thin number of Monte Carlo samples from the fit
 ##
 

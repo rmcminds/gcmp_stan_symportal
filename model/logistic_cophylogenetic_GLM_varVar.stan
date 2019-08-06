@@ -23,18 +23,16 @@ data {
     row_vector[NMicrobeNodes] microbeEdges;
 }
 transformed data {
-    cov_matrix[NMicrobeNodes] microbeAncestorsLLInv
-        = inverse_spd(tcrossprod(microbeAncestors));
-    cov_matrix[NHostNodes] hostAncestorsLLInv
-        = inverse_spd(tcrossprod(hostAncestors));
+    matrix[NMicrobeNodes,NMicrobeNodes] microbeAncestorsInvT
+        = inverse(microbeAncestors)';
+    matrix[NHostNodes,NHostNodes] hostAncestorsInv
+        = inverse(hostAncestors);
     matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsCont
         = microbeAncestors;
-    matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsContInv;
-    matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsContXInvT;
+    matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsContInvT;
     matrix[NHostNodes, NHostNodes] hostAncestorsCont
         = hostAncestors;
     matrix[NHostNodes, NHostNodes] hostAncestorsContInv;
-    matrix[NHostNodes, NHostNodes] hostAncestorsContXInv;
     row_vector[NHostNodes] PDescHost
         = rep_row_vector(1.0 / NHostTips, NHostTips)
           * hostAncestors[1:NHostTips,];
@@ -51,9 +49,13 @@ transformed data {
         = log(hostEdges);
     row_vector[NMicrobeNodes] logMicrobeEdges
         = log(microbeEdges);
-    row_vector[NMicrobeNodes] rawMicrobeVarScales;
-    vector[NHostNodes] rawHostVarScales;
-    matrix[NHostNodes, NMicrobeNodes] rawHostMicrobeVarScales;
+    row_vector[NMicrobeNodes] rawMicrobeVarScales
+        = sqrt(microbeEdges);
+    vector[NHostNodes] rawHostVarScales
+        = sqrt(hostEdges);
+    matrix[NHostNodes, NMicrobeNodes] rawHostMicrobeVarScales
+        = sqrt(hostEdges
+          * microbeEdges);
     int NSubfactorGammas
         = 0;
     int NSubfactors
@@ -69,27 +71,16 @@ transformed data {
             NSubfactorGammas += NSubPerFactor[i] - 1;
         }
     }
-    rawMicrobeVarScales
-        = sqrt(microbeEdges * microbeAncestors');
-    rawHostVarScales
-        = sqrt(hostAncestors * hostEdges);
-    rawHostMicrobeVarScales
-        = sqrt(hostAncestors
-               * hostEdges
-               * microbeEdges
-               * microbeAncestors');
-    microbeAncestorsContInv
-        = inverse_spd(tcrossprod(microbeAncestorsCont));
+    microbeAncestorsContInvT
+        = inverse(microbeAncestorsCont)';
     hostAncestorsContInv
-        = inverse_spd(tcrossprod(hostAncestorsCont));
-    microbeAncestorsContXInvT
-        = (microbeAncestorsCont / microbeAncestors)';
-    hostAncestorsContXInv
-        = hostAncestorsCont / hostAncestors;
+        = inverse(hostAncestorsCont);
 }
 parameters {
-    vector<lower=0, upper=pi()/2>[2 * NFactors + 3] superScales_unif;
-    vector<lower=0, upper=pi()/2>[NFactors + 3] superMetaScales_unif;
+    real<lower=0> globalScaleRaw;
+    real<lower=0> globalMetaScaleRaw;
+    vector<lower=0>[2 * NFactors + 3] superScalesRaw;
+    vector<lower=0>[NFactors + 3] superMetaScalesRaw;
     vector<lower=0>[2 * NSubfactorGammas] subScalesRaw;
     vector<lower=0>[NSubfactorGammas] subMetaScalesRaw;
     row_vector[NMicrobeNodes] scaledPhyloLogVarMultPrev;
@@ -105,8 +96,10 @@ parameters {
     real<lower=-1, upper=1> varEffectCor;
 }
 transformed parameters {
-    vector<lower=0>[2 * NFactors + 3] superScales = tan(superScales_unif);
-    vector<lower=0>[NFactors + 3] superMetaScales = tan(superMetaScales_unif);
+    vector<lower=0>[2 * NFactors + 3] superScales
+        = aveStDPriorExpect * superScalesRaw;
+    vector<lower=0>[NFactors + 3] superMetaScales
+        = aveStDMetaPriorExpect * superMetaScalesRaw;
     vector<lower=0>[2 * NSubfactors + 3] scales;
     vector<lower=0>[NSubfactors + 3] metaScales;
     row_vector[NMicrobeNodes] rawPhyloLogVarMultPrev;
@@ -174,14 +167,8 @@ transformed parameters {
     }
     scales[(2 * NSubfactors + 1):(2 * NSubfactors + 3)]
         = superScales[(2 * NFactors + 1):(2 * NFactors + 3)];
-    scales
-        = scales
-          * aveStDPriorExpect;
     metaScales[(NSubfactors + 1):(NSubfactors + 3)]
         = superMetaScales[(NFactors + 1):(NFactors + 3)];
-    metaScales
-        = metaScales
-          * aveStDMetaPriorExpect;
     {
         row_vector[NMicrobeNodes] logMicrobeVarRaw;
         vector[NHostNodes] logHostVarRaw;
@@ -209,85 +196,66 @@ transformed parameters {
             = scaledPhyloLogVarMultFacts + rep_matrix(logMicrobeVarRaw, NSubfactors);
         microbeScales
             = scales[2 * NSubfactors + 1]
-              * sqrt(microbeNewEdges
-                     * microbeAncestors');
+              * sqrt(microbeNewEdges);
         hostScales
             = scales[2 * NSubfactors + 2]
-              * sqrt(hostAncestors
-                     * hostNewEdges);
+              * sqrt(hostNewEdges);
         phyloScales
             = scales[2 * NSubfactors + 3]
-              * sqrt(hostAncestors
-                     * exp(logPhyloVarRaw
-                           - log_sum_exp(logPDescBoth + logPhyloVarRaw))
-                     * microbeAncestors');
+              * sqrt(exp(logPhyloVarRaw
+                         - log_sum_exp(logPDescBoth + logPhyloVarRaw)));
         for(f in 1:NSubfactors) {
             factScales[f,]
                 = scales[NSubfactors + f]
                   * sqrt(exp(logFactVarRaw[f,]
-                             - log_sum_exp(logPDescMicrobe + logFactVarRaw[f,]))
-                         * microbeAncestors');
+                             - log_sum_exp(logPDescMicrobe + logFactVarRaw[f,])));
         }
         rawEffectsADiv
             = scaledEffectsADiv ./ (subfactLevelMat * segment(scales, 1, NSubfactors));
         rawHostADiv
-            = scaledHostADiv ./ hostScales;
+            = (hostAncestorsInv * scaledHostADiv) ./ hostScales;
         rawMicrobePrevalence
-            = scaledMicrobePrevalence ./ microbeScales;
+            = (scaledMicrobePrevalence * microbeAncestorsInvT) ./ microbeScales;
         rawMicrobeEffectSpecificity
-            = (scaledMicrobeEffectSpecificity - rep_matrix(scaledEffectsADiv, NMicrobeNodes)) ./ (subfactLevelMat * factScales);
+            = ((scaledMicrobeEffectSpecificity - rep_matrix(scaledEffectsADiv, NMicrobeNodes)) * microbeAncestorsInvT) ./ (subfactLevelMat * factScales);
         rawHostMicrobeSpecificity
-            = (scaledHostMicrobeSpecificity - rep_matrix(scaledHostADiv, NMicrobeNodes) - rep_matrix(scaledMicrobePrevalence, NHostNodes) - intercept) ./ phyloScales;
+            = (hostAncestorsInv * (scaledHostMicrobeSpecificity - rep_matrix(scaledHostADiv, NMicrobeNodes) - rep_matrix(scaledMicrobePrevalence, NHostNodes) - intercept) * microbeAncestorsInvT) ./ phyloScales;
         rawPhyloLogVarMultFacts
-            = scaledPhyloLogVarMultFacts ./ rep_matrix(rawMicrobeVarScales, NSubfactors) ./ rep_matrix(metaScales[1:NSubfactors], NMicrobeNodes);
+            = (scaledPhyloLogVarMultFacts * microbeAncestorsContInvT) ./ rep_matrix(rawMicrobeVarScales, NSubfactors) ./ rep_matrix(metaScales[1:NSubfactors], NMicrobeNodes);
         rawPhyloLogVarMultPrev
-            = (scaledPhyloLogVarMultPrev ./ rawMicrobeVarScales / metaScales[NSubfactors + 1]
-               - varEffectCor * rawMicrobePrevalence * microbeAncestorsContXInvT)
+            = ((scaledPhyloLogVarMultPrev * microbeAncestorsContInvT) ./ rawMicrobeVarScales / metaScales[NSubfactors + 1]
+               - varEffectCor * rawMicrobePrevalence)
               / varEffectChol2;
         rawPhyloLogVarMultADiv
-            = (scaledPhyloLogVarMultADiv ./ rawHostVarScales / metaScales[NSubfactors + 2]
-               - varEffectCor * hostAncestorsContXInv * rawHostADiv)
+            = ((hostAncestorsContInv * scaledPhyloLogVarMultADiv) ./ rawHostVarScales / metaScales[NSubfactors + 2]
+               - varEffectCor * rawHostADiv)
               / varEffectChol2;
         rawPhyloLogVarMultRaw
-            = (scaledPhyloLogVarMultRaw ./ rawHostMicrobeVarScales / metaScales[NSubfactors + 3]
-               - varEffectCor * hostAncestorsContXInv * rawHostMicrobeSpecificity * microbeAncestorsContXInvT)
+            = ((hostAncestorsContInv * scaledPhyloLogVarMultRaw * microbeAncestorsContInvT) ./ rawHostMicrobeVarScales / metaScales[NSubfactors + 3]
+               - varEffectCor * rawHostMicrobeSpecificity)
               / varEffectChol2;
     }
 }
 model {
     matrix[NSamples, NMicrobeTips] sampleTipEffects;
     vector[NObs] logit_ratios;
+    target += student_t_lpdf(globalScaleRaw | 25,0,1);
+    target += student_t_lpdf(globalMetaScaleRaw | 25,0,1);
+    target += student_t_lpdf(superScalesRaw | 25,0, globalScaleRaw);
+    target += student_t_lpdf(superMetaScalesRaw | 25,0, globalMetaScaleRaw);
     target += dirichSubFact_lpdf;
-    target += (- (NSubfactors + 1) * NMicrobeNodes * log(2*pi())
-               - trace_quad_form(microbeAncestorsContInv,
-                                 append_row(rawPhyloLogVarMultPrev,
-                                            rawPhyloLogVarMultFacts)'))
-              * 0.5; //matrix normal lpdf for log rate changes in microbe prevalence and factors (http://rpubs.com/mshvarts/matnorm-stan)
-    target += multi_normal_cholesky_lpdf(rawPhyloLogVarMultADiv |
-                                         rep_vector(0,NHostNodes),
-                                         hostAncestorsCont);
-    target += (- NHostNodes * NMicrobeNodes * log(2*pi())
-               - trace_gen_quad_form(microbeAncestorsContInv,
-                                     hostAncestorsContInv,
-                                     rawPhyloLogVarMultRaw))
-              * 0.5; //matrix normal lpdf for log rate changes in host-microbe interactions
     target += logistic_lpdf(intercept | 0,1);
     target += std_normal_lpdf(rawEffectsADiv);
     target += std_normal_lpdf(baseLevelMat * rawEffectsADiv);
-    target += (- (NEffects + NSumTo0 + 1) * NMicrobeNodes * log(2*pi())
-               - trace_quad_form(microbeAncestorsLLInv,
-                                 append_row(rawMicrobePrevalence,
-                                   append_row(rawMicrobeEffectSpecificity,
-                                              baseLevelMat * rawMicrobeEffectSpecificity))'))
-              * 0.5; //matrix normal lpdf for microbe prevalence and effect-microbe interactions
-    target += multi_normal_cholesky_lpdf(rawHostADiv |
-                                         rep_vector(0,NHostNodes),
-                                         hostAncestors);
-    target += (- NHostNodes * NMicrobeNodes * log(2*pi())
-               - trace_gen_quad_form(microbeAncestorsLLInv,
-                                     hostAncestorsLLInv,
-                                     rawHostMicrobeSpecificity))
-              * 0.5; //matrix normal lpdf for host-microbe interactions
+    target += std_normal_lpdf(rawHostADiv);
+    target += std_normal_lpdf(rawMicrobePrevalence);
+    target += std_normal_lpdf(to_vector(rawMicrobeEffectSpecificity));
+    target += std_normal_lpdf(to_vector(baseLevelMat * rawMicrobeEffectSpecificity));
+    target += std_normal_lpdf(to_vector(rawHostMicrobeSpecificity));
+    target += std_normal_lpdf(to_vector(rawPhyloLogVarMultFacts));
+    target += std_normal_lpdf(rawPhyloLogVarMultPrev);
+    target += std_normal_lpdf(rawPhyloLogVarMultADiv);
+    target += std_normal_lpdf(to_vector(rawPhyloLogVarMultRaw));
     sampleTipEffects
         = modelMat * append_row(scaledMicrobeEffectSpecificity[,1:NMicrobeTips], scaledHostMicrobeSpecificity[1:NHostTips, 1:NMicrobeTips]);
     for (n in 1:NObs)
@@ -295,9 +263,12 @@ model {
     target += bernoulli_logit_lpmf(present | logit_ratios);
 }
 generated quantities {
-    vector[2 * NFactors + 3] stDProps = square(superScales) / sum(square(superScales));
-    vector[2 * NSubfactors + 3] subfactProps = square(scales) / sum(square(superScales));
-    vector[NFactors + 3] metaVarProps = square(superMetaScales) / sum(square(superMetaScales));
+    vector[2 * NFactors + 3] stDProps
+        = square(superScales) / sum(square(superScales));
+    vector[2 * NSubfactors + 3] subfactProps
+        = square(scales) / sum(square(superScales));
+    vector[NFactors + 3] metaVarProps
+        = square(superMetaScales) / sum(square(superMetaScales));
     matrix[NSumTo0, NMicrobeNodes + 1] baseLevelEffects
         = baseLevelMat * append_col(scaledEffectsADiv,
                                     scaledMicrobeEffectSpecificity - rep_matrix(scaledEffectsADiv, NMicrobeNodes));
