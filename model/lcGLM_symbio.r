@@ -58,12 +58,15 @@ groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'
 ##
 
 ## Stan options
-init_r <- 2
+init_r <- 30
 NCores <- 2 #NTrees
 NChains <- 1 ## this is per tree; since I'm doing a large number of trees in parallel i'll just do one chain for each
 NIterations <- 2^(12 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
-max_treedepth <- 10 ## a warning will tell you if this needs to be increased
+max_treedepth <- 15 ## a warning will tell you if this needs to be increased
 adapt_delta <- 0.8 ## increase this if you get 'divergences' - even one means your model fit sucks!
+adapt_kappa <- 0.75
+adapt_t0 <- 10
+adapt_gamma <- 0.05
 thin <- 2^(2 - 1) ## NIterations / thin number of Monte Carlo samples from the fit
 ##
 
@@ -266,6 +269,10 @@ for(i in 1:NTrees) {
                                                 hostTree[[hostTreeSampleNumbers[[i]]]]$tip.label[!hostTree[[hostTreeSampleNumbers[[i]]]]$tip.label %in% levels(sampleMap[[i]][,sampleTipKey])]))
     
     #get some tree stats for later use
+    hostTreeDetails[[i]] <- getTreeDetails(hostTreesSampled[[i]])
+    
+    hostTreesSampled[[i]]$edge.length <- hostTreesSampled[[i]]$edge.length / hostTreeDetails[[i]]$maxNHs
+    
     hostTreeDetails[[i]] <- getTreeDetails(hostTreesSampled[[i]])
 }
 ##

@@ -30,38 +30,69 @@ transformed data {
           * hostTipAncestors;
     vector[NHostNodes] logPDescHost
         = log(PDescHost)';
-    vector[NHostNodes] hostDivEdges
-        = rep_vector(1.0 / sum(PDescHost), NHostNodes);
+    real tipPerEdgeHost
+        = NHostTips / sum(hostTipAncestors);
+    real sqrtTipPerEdgeHost
+        = sqrt(tipPerEdgeHost);
+    matrix[NHostNodes, NHostNodes] hostAncestorsDivScaled
+        = hostAncestors * sqrtTipPerEdgeHost;
+    real logTipPerEdgeHost
+        = log(tipPerEdgeHost);
+    vector[NHostNodes] sqrtHostDivEdges
+        = rep_vector(sqrtTipPerEdgeHost, NHostNodes);
     vector[NMicrobeNodes] PDescMicrobe
         = microbeTipAncestorsT[2:,]
           * rep_vector(1.0 / NMicrobeTips, NMicrobeTips);
     row_vector[NMicrobeNodes] logPDescMicrobe
         = log(PDescMicrobe)';
+    real tipPerEdgeMicrobe
+        = NMicrobeTips / sum(microbeTipAncestorsT[2:,]);
+    real sqrtTipPerEdgeMicrobe
+        = sqrt(tipPerEdgeMicrobe);
+    matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsTDivScaled
+        = microbeAncestorsT * sqrtTipPerEdgeMicrobe;
+    real logTipPerEdgeMicrobe
+        = log(tipPerEdgeMicrobe);
+    row_vector[NMicrobeNodes] sqrtMicrobeDivEdges
+        = rep_row_vector(sqrtTipPerEdgeMicrobe, NMicrobeNodes);
     matrix[NHostNodes, NMicrobeNodes] logPDescBoth
         = rep_matrix(logPDescMicrobe, NHostNodes) + rep_matrix(logPDescHost, NMicrobeNodes);
-    row_vector[NMicrobeNodes] microbeDivEdges
-        = rep_row_vector(1.0 / sum(PDescMicrobe), NMicrobeNodes);
     matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsTCont
         = microbeAncestorsT;
+    matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsTContScaled;
+    matrix[NMicrobeNodes, NMicrobeNodes] microbeAncestorsTContScaledStart;
     matrix[NHostNodes, NHostNodes] hostAncestorsCont
         = hostAncestors;
+    matrix[NHostNodes, NHostNodes] hostAncestorsContScaled;
+    matrix[NHostNodes, NHostNodes] hostAncestorsContScaledStart;
     vector[NHostNodes] logHostEdges = log(hostEdges);
     row_vector[NMicrobeNodes] logMicrobeEdges = log(microbeEdges);
     vector[NHostNodes] sqrtHostEdges = sqrt(hostEdges);
     row_vector[NMicrobeNodes] sqrtMicrobeEdges = sqrt(microbeEdges);
     matrix[NHostNodes, NMicrobeNodes] outerEdges
         = sqrt(hostEdges
-               * microbeEdges
-               * NMicrobeTips
-               * NHostTips
-               / (NHostTips + NMicrobeTips));
+               * microbeEdges);
     int NSubfactorGammas = 0;
     int NSubfactors = sum(NSubPerFactor);
     for(i in 1:NMicrobeNodes) {
-        microbeAncestorsTCont[i,i] = 1.0 - exp(-microbeEdges[i]);
+        microbeAncestorsTCont[i,i] = 1.0 - exp(-1);
+    }
+    microbeAncestorsTContScaled
+        = diag_pre_multiply(sqrtMicrobeEdges, microbeAncestorsTCont);
+    microbeAncestorsTContScaledStart
+        = microbeAncestorsTContScaled;
+    for(i in 1:NMicrobeNodes) {
+        microbeAncestorsTContScaledStart[i,i] = 0;
     }
     for(i in 1:NHostNodes) {
-        hostAncestorsCont[i,i] = 1.0 - exp(-hostEdges[i]);
+        hostAncestorsCont[i,i] = 1.0 - exp(-1);
+    }
+    hostAncestorsContScaled
+        = diag_post_multiply(hostAncestorsCont, sqrtHostEdges);
+    hostAncestorsContScaledStart
+        = hostAncestorsContScaled;
+    for(i in 1:NHostNodes) {
+        hostAncestorsContScaledStart[i,i] = 0;
     }
     for(i in 1:NFactors) {
         if(NSubPerFactor[i] > 1) {
@@ -70,6 +101,8 @@ transformed data {
     }
 }
 parameters {
+    simplex[2] hostDivVsTime;
+    simplex[2] microbeDivVsTime;
     real<lower=0> aveStD;
     vector<lower=0>[2 * NSubfactorGammas] subfactPropsRaw;
     simplex[2 * NFactors + 3] stDProps;
@@ -81,6 +114,7 @@ parameters {
     matrix[NHostNodes, NMicrobeNodes] phyloLogVarMultRaw;
     matrix[NSubfactors, NMicrobeNodes] phyloLogVarMultFacts;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] rawMicrobeNodeEffects;
+    vector<lower=-1, upper=1>[3] varEffectCor;
 }
 transformed parameters {
     simplex[2 * NSubfactors + 3] subfactProps;
@@ -91,6 +125,7 @@ transformed parameters {
     vector<lower=0>[NHostNodes] hostScales;
     matrix<lower=0>[NSubfactors, NMicrobeNodes] factScales;
     matrix[NEffects + NHostNodes + 1, NMicrobeNodes + 1] scaledMicrobeNodeEffects;
+    vector<lower=0, upper=1>[3] varEffectChol2 = sqrt(1 - square(varEffectCor));
     real dirichSubFact_lpdf = 0;
     {
         int rawStart = 1;
@@ -147,81 +182,199 @@ transformed parameters {
     subfactMetaProps[(NSubfactors + 1):(NSubfactors + 3)]
         = metaVarProps[(NFactors + 1):(NFactors + 3)];
     scales
-        = sqrt((2 * NSubfactors + 3) * subfactProps)
+        = sqrt((NHostNodes + NSubfactors + 1) * (NMicrobeNodes + 1) * subfactProps)
           * aveStD;
     metaScales
-        = sqrt((NSubfactors + 3) * subfactMetaProps)
+        = sqrt(((NHostNodes + 1) * (NMicrobeNodes + 1) + NSubfactors * NMicrobeNodes) * subfactMetaProps)
           * aveStDMeta;
     {
         row_vector[NMicrobeNodes] logMicrobeVarRaw;
+        row_vector[NMicrobeNodes] microbeMetaVar;
         vector[NHostNodes] logHostVarRaw;
+        vector[NHostNodes] hostMetaVar;
         matrix[NHostNodes, NMicrobeNodes] logPhyloVarRaw;
+        matrix[NHostNodes, NMicrobeNodes] phyloMetaVar;
         matrix[NSubfactors, NMicrobeNodes] logFactVarRaw;
+        matrix[NSubfactors, NMicrobeNodes] factMetaVar;
+        row_vector[NMicrobeNodes] logMicrobeTimeVarRaw;
+        vector[NHostNodes] logHostTimeVarRaw;
+        matrix[NHostNodes, NMicrobeNodes] logPhyloTimeVarRaw;
+        matrix[NSubfactors, NMicrobeNodes] logFactTimeVarRaw;
+        row_vector[NMicrobeNodes] logMicrobeDivVarRaw;
+        vector[NHostNodes] logHostDivVarRaw;
+        matrix[NHostNodes, NMicrobeNodes] logPhyloDivTimeVarRaw;
+        matrix[NHostNodes, NMicrobeNodes] logPhyloTimeDivVarRaw;
+        matrix[NHostNodes, NMicrobeNodes] logPhyloDivVarRaw;
+        matrix[NSubfactors, NMicrobeNodes] logFactDivVarRaw;
         matrix[NHostNodes, NMicrobeNodes] phyloScales;
         logMicrobeVarRaw
+            = phyloLogVarMultPrev * metaScales[NSubfactors + 1];
+        microbeMetaVar
+            = logMicrobeVarRaw
+              * (microbeAncestorsTContScaled
+                 * sqrt(microbeDivVsTime[1])
+                 + microbeAncestorsTDivScaled
+                   * sqrt(microbeDivVsTime[2]));
+        logMicrobeTimeVarRaw
             = logMicrobeEdges
-              + (sqrtMicrobeEdges
-                 .* phyloLogVarMultPrev
-                 * metaScales[NSubfactors + 1])
-                * microbeAncestorsTCont;
+              + microbeMetaVar; // includes instantaneous changes in variance and gradual changes of self and ancestors
+        logMicrobeTimeVarRaw
+            = logMicrobeTimeVarRaw
+              - log_sum_exp(logPDescMicrobe + logMicrobeTimeVarRaw);
+        logMicrobeDivVarRaw
+            = logTipPerEdgeMicrobe
+              + microbeMetaVar
+              - logMicrobeVarRaw
+                * sqrt(microbeDivVsTime[1])
+                * microbeAncestorsTCont[1,1]; // includes instantaneous changes in variance and only ancestral gradual changes
+        logMicrobeDivVarRaw
+            = logMicrobeDivVarRaw
+              - log_sum_exp(logPDescMicrobe + logMicrobeDivVarRaw);
         logHostVarRaw
+            = phyloLogVarMultADiv * metaScales[NSubfactors + 2];
+        hostMetaVar
+            = (hostAncestorsContScaled
+               * sqrt(hostDivVsTime[1])
+               + hostAncestorsDivScaled
+                 * sqrt(hostDivVsTime[2]))
+              * logHostVarRaw;
+        logHostTimeVarRaw
             = logHostEdges
-              + hostAncestorsCont
-                * (sqrtHostEdges
-                   .* phyloLogVarMultADiv
-                   * metaScales[NSubfactors + 2]);
+              + hostMetaVar;
+        logHostTimeVarRaw
+            = logHostTimeVarRaw
+              - log_sum_exp(logPDescHost + logHostTimeVarRaw);
+        logHostDivVarRaw
+            = logTipPerEdgeHost
+              + hostMetaVar
+              - logHostVarRaw
+                * sqrt(hostDivVsTime[1])
+                * hostAncestorsCont[1,1];
+        logHostDivVarRaw
+            = logHostDivVarRaw
+              - log_sum_exp(logPDescHost + logHostDivVarRaw);
         logPhyloVarRaw
-            = hostAncestorsCont
-                  * (outerEdges
-                     .* phyloLogVarMultRaw
-                     * metaScales[NSubfactors + 3])
-                  * microbeAncestorsTCont
-              + rep_matrix(logHostVarRaw, NMicrobeNodes)
-              + rep_matrix(logMicrobeVarRaw, NHostNodes);
+            = phyloLogVarMultRaw * metaScales[NSubfactors + 3];
+        phyloMetaVar
+            = (hostAncestorsContScaled
+               * sqrt(hostDivVsTime[1])
+               + hostAncestorsDivScaled
+                 * sqrt(hostDivVsTime[2]))
+              * logPhyloVarRaw
+              * (microbeAncestorsTContScaled
+                 * sqrt(microbeDivVsTime[1])
+                 + microbeAncestorsTDivScaled
+                   * sqrt(microbeDivVsTime[2]));
+        logPhyloTimeVarRaw
+            = rep_matrix(logHostTimeVarRaw, NMicrobeNodes)
+              + rep_matrix(logMicrobeTimeVarRaw, NHostNodes)
+              + phyloMetaVar;
+        logPhyloTimeVarRaw
+            = logPhyloTimeVarRaw
+              - log_sum_exp(logPDescBoth + logPhyloTimeVarRaw);
+        logPhyloTimeDivVarRaw
+            = rep_matrix(logHostDivVarRaw, NMicrobeNodes)
+              + rep_matrix(logMicrobeTimeVarRaw, NHostNodes)
+              + phyloMetaVar
+              - hostAncestorsCont[1,1]
+                * sqrt(hostDivVsTime[1])
+                * logPhyloVarRaw
+                * (microbeAncestorsTContScaled
+                   * sqrt(microbeDivVsTime[1])
+                   + microbeAncestorsTDivScaled
+                     * sqrt(microbeDivVsTime[2]));
+        logPhyloTimeDivVarRaw
+            = logPhyloTimeDivVarRaw
+              - log_sum_exp(logPDescBoth + logPhyloTimeDivVarRaw);
+        logPhyloDivTimeVarRaw
+            = rep_matrix(logHostTimeVarRaw, NMicrobeNodes)
+              + rep_matrix(logMicrobeDivVarRaw, NHostNodes)
+              + phyloMetaVar
+              - (hostAncestorsContScaled
+                 * sqrt(hostDivVsTime[1])
+                 + hostAncestorsDivScaled
+                   * sqrt(hostDivVsTime[2]))
+                * logPhyloVarRaw
+                * sqrt(microbeDivVsTime[1])
+                * microbeAncestorsTCont[1,1];
+        logPhyloDivTimeVarRaw
+            = logPhyloDivTimeVarRaw
+              - log_sum_exp(logPDescBoth + logPhyloDivTimeVarRaw);
+        logPhyloDivVarRaw
+            = rep_matrix(logHostDivVarRaw, NMicrobeNodes)
+              + rep_matrix(logMicrobeDivVarRaw, NHostNodes)
+              + (hostAncestorsContScaledStart
+                 * sqrt(hostDivVsTime[1])
+                 + hostAncestorsDivScaled
+                   * sqrt(hostDivVsTime[2]))
+                * logPhyloVarRaw
+                * (microbeAncestorsTContScaledStart
+                   * sqrt(microbeDivVsTime[1])
+                   + microbeAncestorsTDivScaled
+                     * sqrt(microbeDivVsTime[2]));
+        logPhyloDivVarRaw
+            = logPhyloDivVarRaw
+              - log_sum_exp(logPDescBoth + logPhyloDivVarRaw);
         logFactVarRaw
-            = metaScales[1:NSubfactors]
-              * sqrtMicrobeEdges
-              .* phyloLogVarMultFacts
-              * microbeAncestorsTCont
-              + rep_matrix(logMicrobeVarRaw, NSubfactors);
+            = diag_pre_multiply(metaScales[1:NSubfactors], phyloLogVarMultFacts);
+        factMetaVar
+            = logFactVarRaw
+              * (microbeAncestorsTContScaled
+                 * sqrt(microbeDivVsTime[1])
+                 + microbeAncestorsTDivScaled
+                   * sqrt(microbeDivVsTime[2]));
+        logFactTimeVarRaw
+            = rep_matrix(logMicrobeTimeVarRaw, NSubfactors)
+              + factMetaVar;
+        logFactDivVarRaw
+            = rep_matrix(logMicrobeDivVarRaw, NSubfactors)
+              + factMetaVar
+              - logFactVarRaw
+                * sqrt(microbeDivVsTime[1])
+                * microbeAncestorsTCont[1,1];
         microbeScales
             = scales[2 * NSubfactors + 3]
-              * exp((logMicrobeVarRaw
-                     - log_sum_exp(logPDescMicrobe + logMicrobeVarRaw))
-                    * 0.5);
+              * sqrt(exp(logMicrobeTimeVarRaw + log(microbeDivVsTime[1]))
+                     + exp(logMicrobeDivVarRaw + log(microbeDivVsTime[2])));
         hostScales
             = scales[2 * NSubfactors + 1]
-              * exp((logHostVarRaw
-                     - log_sum_exp(logPDescHost + logHostVarRaw))
-                    * 0.5);
+              * sqrt(exp(logHostTimeVarRaw + log(hostDivVsTime[1]))
+                     + exp(logHostDivVarRaw + log(hostDivVsTime[2])));
         phyloScales
             = scales[2 * NSubfactors + 2]
-              * exp((logPhyloVarRaw
-                     - log_sum_exp(logPDescBoth + logPhyloVarRaw))
-                    * 0.5);
+              * sqrt(exp(logPhyloTimeVarRaw + log(microbeDivVsTime[1] * hostDivVsTime[1]))
+                     + exp(logPhyloTimeDivVarRaw + log(microbeDivVsTime[1] * hostDivVsTime[2]))
+                     + exp(logPhyloDivTimeVarRaw + log(microbeDivVsTime[2] * hostDivVsTime[1]))
+                     + exp(logPhyloDivVarRaw + log(microbeDivVsTime[2] * hostDivVsTime[2])));
         for(f in 1:NSubfactors) {
             factScales[f,]
                 = scales[NSubfactors + f]
-                  * exp((logFactVarRaw[f,]
-                        - log_sum_exp(logPDescMicrobe + logFactVarRaw[f,]))
-                        * 0.5);
+                  * sqrt(exp(logFactTimeVarRaw[f,]
+                             - log_sum_exp(logPDescMicrobe + logFactTimeVarRaw[f,])
+                             + log(microbeDivVsTime[1]))
+                         + exp(logFactDivVarRaw[f,]
+                               - log_sum_exp(logPDescMicrobe + logFactDivVarRaw[f,])
+                               + log(microbeDivVsTime[2])));
         }
         scaledMicrobeNodeEffects[1,1]
-            = rawMicrobeNodeEffects[1,1]; //intercept
+            = 10 * tan(pi() * (inv_logit(rawMicrobeNodeEffects[1,1]) - 0.5)); //intercept
         scaledMicrobeNodeEffects[1,2:]
-            = microbeScales .* rawMicrobeNodeEffects[1,2:]; //microbe prevalence
+            = microbeScales .* (varEffectChol2[1] * rawMicrobeNodeEffects[1,2:]
+                                + varEffectCor[1] * phyloLogVarMultPrev); //microbe prevalence
         scaledMicrobeNodeEffects[2:(NEffects + 1),1]
             = subfactLevelMat
               * segment(scales, 1, NSubfactors)
               .* rawMicrobeNodeEffects[2:(NEffects + 1),1]; //samplewise factor alpha diversity
         scaledMicrobeNodeEffects[(NEffects + 2):,1]
-            = hostScales .* rawMicrobeNodeEffects[(NEffects + 2):,1]; //host alpha diversity
+            = hostScales .* (varEffectChol2[2] * rawMicrobeNodeEffects[(NEffects + 2):,1]
+                             + varEffectCor[2] * phyloLogVarMultADiv); //host alpha diversity
         scaledMicrobeNodeEffects[2:(NEffects + 1),2:]
             = subfactLevelMat
               * factScales
               .* rawMicrobeNodeEffects[2:(NEffects + 1),2:]; //samplewise factor microbe interactions
         scaledMicrobeNodeEffects[(NEffects + 2):,2:]
-            = phyloScales .* rawMicrobeNodeEffects[(NEffects + 2):,2:]; //host microbe interactions
+            = phyloScales .* (varEffectChol2[3] * rawMicrobeNodeEffects[(NEffects + 2):,2:]
+                              + varEffectCor[3] * phyloLogVarMultRaw); //host microbe interactions
     }
 }
 model {
