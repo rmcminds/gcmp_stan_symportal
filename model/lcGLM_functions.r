@@ -647,21 +647,35 @@ summarizeLcGLM <- function(combineTrees    = T,
             gc()
             ##
             
-            ## summarize correlation of effects and rates
+            ## summarize correlation of effects and rates and of effects of divergence vs effects of time
             # summary
-            allRes <- monitor(varEffectCor,
-                              warmup = warmup,
-                              probs  = c(0.025, 0.5, 0.975),
-                              print  = F)
-            rownames(allRes) <- c('prevalence','alpha_div','codiv')
-            cat('level\t', file = file.path(currtabledir, 'varEffectCor.txt'))
+            
+            cat('\n\tSummarizing variance meta-parameters\n\t')
+            cat(paste0(as.character(Sys.time()), '\n'))
+            
+            allRes <- rbind(monitor(varEffectCor,
+                                    warmup = warmup,
+                                    probs  = c(0.025, 0.5, 0.975),
+                                    print  = F),
+                            rbind(monitor(microbeDivVsTime,
+                                          warmup = warmup,
+                                          probs  = c(0.025, 0.5, 0.975),
+                                          print  = F),
+                                  monitor(hostDivVsTime,
+                                          warmup = warmup,
+                                          probs  = c(0.025, 0.5, 0.975),
+                                          print  = F)))
+            rownames(allRes) <- c('prevalenceCor','alpha_divCor','codivCor','microbetime','microbediv','hosttime','hostdiv')
+            
+            cat('level\t', file = file.path(currtabledir, 'varianceParams.txt'))
             write.table(allRes,
-                        file   = file.path(currtabledir, 'varEffectCor.txt'),
+                        file   = file.path(currtabledir, 'varianceParams.txt'),
                         sep    = '\t',
                         quote  = F,
                         append = T)
                         
-            # plot
+            # plots
+            # cor
             varEffectCorPlot <- NULL
             for(j in 1:NChains) {
                 varEffectCorPlot <- rbind(varEffectCorPlot, varEffectCor[(warmup + 1):NMCSamples, j,])
@@ -676,24 +690,7 @@ summarizeLcGLM <- function(combineTrees    = T,
             
             save(varEffectCor, file = file.path(currdatadir, 'varEffectCor.RData'))
             
-            ##
-            
-            ## summarize effects of divergence vs effects of time
             # microbe
-            allRes <- monitor(microbeDivVsTime,
-                              warmup = warmup,
-                              probs  = c(0.025, 0.5, 0.975),
-                              print  = F)
-            rownames(allRes) <- c('time',
-                                  'div')
-            cat('factor\t', file = file.path(currtabledir, 'microbeDivVsTime.txt'))
-            write.table(allRes,
-                        file   = file.path(currtabledir, 'microbeDivVsTime.txt'),
-                        sep    = '\t',
-                        quote  = F,
-                        append = T)
-                        
-            # plot
             microbeDivVsTimePlot <- NULL
             for(j in 1:NChains) {
                 microbeDivVsTimePlot <- rbind(microbeDivVsTimePlot, microbeDivVsTime[(warmup + 1):NMCSamples, j,])
@@ -709,20 +706,6 @@ summarizeLcGLM <- function(combineTrees    = T,
             save(microbeDivVsTime, file = file.path(currdatadir, 'microbeDivVsTime.RData'))
             
             # host
-            allRes <- monitor(hostDivVsTime,
-                              warmup = warmup,
-                              probs  = c(0.025, 0.5, 0.975),
-                              print  = F)
-            rownames(allRes) <- c('time',
-                                  'div')
-            cat('factor\t', file = file.path(currtabledir, 'hostDivVsTime.txt'))
-            write.table(allRes,
-                        file   = file.path(currtabledir, 'hostDivVsTime.txt'),
-                        sep    = '\t',
-                        quote  = F,
-                        append = T)
-            
-            # plot
             hostDivVsTimePlot <- NULL
             for(j in 1:NChains) {
                 hostDivVsTimePlot <- rbind(hostDivVsTimePlot, hostDivVsTime[(warmup + 1):NMCSamples, j,])
@@ -911,6 +894,9 @@ summarizeLcGLM <- function(combineTrees    = T,
         }
         
         if(sumEffects) {
+            
+            cat('\n\tLoading node effects\n\t')
+            cat(paste0(as.character(Sys.time()), '\n'))
             
             ## extract effects from model
             scaledMicrobeNodeEffects <- array(extract(read_stan_csv_subset(csvfiles,

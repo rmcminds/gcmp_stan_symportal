@@ -49,7 +49,7 @@ minSamps <- 1 # minimum number of samples that a sequence variant is present in 
 ## model options
 aveStDPriorExpect <- 1.0
 aveStDMetaPriorExpect <- 1.0
-NTrees <- 2 ## number of random trees to sample and to fit the model to
+NTrees <- 10 ## number of random trees to sample and to fit the model to
 groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'),
                        date               = 'concatenated_date',
                        colony             = 'colony_name',
@@ -59,15 +59,15 @@ groupedFactors <- list(location           = c('ocean', 'ocean_area', 'reef_name'
 
 ## Stan options
 init_r <- 30
-NCores <- 2 #NTrees
+NCores <- 4 #NTrees
 NChains <- 1 ## this is per tree; since I'm doing a large number of trees in parallel i'll just do one chain for each
-NIterations <- 2^(12 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
-max_treedepth <- 15 ## a warning will tell you if this needs to be increased
+NIterations <- 2^(13 - 1) ## will probably need >10,000? maybe start with 2, check convergence, double it, check, double, check, double, etc.?
+max_treedepth <- 12 ## a warning will tell you if this needs to be increased
 adapt_delta <- 0.8 ## increase this if you get 'divergences' - even one means your model fit sucks!
 adapt_kappa <- 0.75
 adapt_t0 <- 10
 adapt_gamma <- 0.05
-thin <- 2^(2 - 1) ## NIterations / thin number of Monte Carlo samples from the fit
+thin <- 2^(3 - 1) ## NIterations / thin number of Monte Carlo samples from the fit
 ##
 
 ## define the set of genera that we think our unidentified fungid samples could belong to
