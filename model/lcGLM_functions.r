@@ -565,8 +565,8 @@ summarizeLcGLM <- function(combineTrees    = T,
             varEffectCor <- array(extract(csvBuffer,
                                           pars       = 'varEffectCor',
                                           permuted   = F,
-                                          inc_warmup = T),
-                                  dim = c(NMCSamples,
+                                          inc_warmup = F),
+                                  dim = c(NMCSamples - warmup,
                                           NChains,
                                           3),
                                   dimnames = list(sample  = NULL,
@@ -576,8 +576,8 @@ summarizeLcGLM <- function(combineTrees    = T,
             microbeDivVsTime <- array(extract(csvBuffer,
                                               pars       = 'microbeDivVsTime',
                                               permuted   = F,
-                                              inc_warmup = T),
-                                      dim = c(NMCSamples,
+                                              inc_warmup = F),
+                                      dim = c(NMCSamples - warmup,
                                               NChains,
                                               2),
                                       dimnames = list(sample  = NULL,
@@ -587,8 +587,8 @@ summarizeLcGLM <- function(combineTrees    = T,
             hostDivVsTime <- array(extract(csvBuffer,
                                            pars       = 'hostDivVsTime',
                                            permuted   = F,
-                                           inc_warmup = T),
-                                   dim = c(NMCSamples,
+                                           inc_warmup = F),
+                                   dim = c(NMCSamples - warmup,
                                            NChains,
                                            2),
                                    dimnames = list(sample  = NULL,
@@ -598,8 +598,8 @@ summarizeLcGLM <- function(combineTrees    = T,
             phyloLogVarMultPrev <- array(extract(csvBuffer,
                                                  pars       = 'phyloLogVarMultPrev',
                                                  permuted   = F,
-                                                 inc_warmup = T),
-                                         dim = c(NMCSamples,
+                                                 inc_warmup = F),
+                                         dim = c(NMCSamples - warmup,
                                                  NChains,
                                                  NMicrobeNodes),
                                          dimnames = list(sample  = NULL,
@@ -609,8 +609,8 @@ summarizeLcGLM <- function(combineTrees    = T,
             phyloLogVarMultADiv <- array(extract(csvBuffer,
                                                  pars       = 'phyloLogVarMultADiv',
                                                  permuted   = F,
-                                                 inc_warmup = T),
-                                         dim = c(NMCSamples,
+                                                 inc_warmup = F),
+                                         dim = c(NMCSamples - warmup,
                                                  NChains,
                                                  NHostNodes),
                                          dimnames = list(sample  = NULL,
@@ -620,8 +620,8 @@ summarizeLcGLM <- function(combineTrees    = T,
             phyloLogVarMultRaw <- array(extract(csvBuffer,
                                                 pars       = 'phyloLogVarMultRaw',
                                                 permuted   = F,
-                                                inc_warmup = T),
-                                        dim = c(NMCSamples,
+                                                inc_warmup = F),
+                                        dim = c(NMCSamples - warmup,
                                                 NChains,
                                                 NHostNodes,
                                                 NMicrobeNodes),
@@ -633,8 +633,8 @@ summarizeLcGLM <- function(combineTrees    = T,
             phyloLogVarMultFacts <- array(extract(csvBuffer,
                                                   pars       = 'phyloLogVarMultFacts',
                                                   permuted   = F,
-                                                  inc_warmup = T),
-                                          dim = c(NMCSamples,
+                                                  inc_warmup = F),
+                                          dim = c(NMCSamples - warmup,
                                                   NChains,
                                                   NSubfactors,
                                                   NMicrobeNodes),
@@ -654,15 +654,15 @@ summarizeLcGLM <- function(combineTrees    = T,
             cat(paste0(as.character(Sys.time()), '\n'))
             
             allRes <- rbind(monitor(varEffectCor,
-                                    warmup = warmup,
+                                    warmup = 0,
                                     probs  = c(0.025, 0.5, 0.975),
                                     print  = F),
                             rbind(monitor(microbeDivVsTime,
-                                          warmup = warmup,
+                                          warmup = 0,
                                           probs  = c(0.025, 0.5, 0.975),
                                           print  = F),
                                   monitor(hostDivVsTime,
-                                          warmup = warmup,
+                                          warmup = 0,
                                           probs  = c(0.025, 0.5, 0.975),
                                           print  = F)))
             rownames(allRes) <- c('prevalenceCor','alpha_divCor','codivCor','microbetime','microbediv','hosttime','hostdiv')
@@ -678,7 +678,7 @@ summarizeLcGLM <- function(combineTrees    = T,
             # cor
             varEffectCorPlot <- NULL
             for(j in 1:NChains) {
-                varEffectCorPlot <- rbind(varEffectCorPlot, varEffectCor[(warmup + 1):NMCSamples, j,])
+                varEffectCorPlot <- rbind(varEffectCorPlot, varEffectCor[,j,])
             }
             pdf(file   = file.path(currplotdir, 'varEffectCor_boxes.pdf'),
                 width  = 7,
@@ -693,7 +693,7 @@ summarizeLcGLM <- function(combineTrees    = T,
             # microbe
             microbeDivVsTimePlot <- NULL
             for(j in 1:NChains) {
-                microbeDivVsTimePlot <- rbind(microbeDivVsTimePlot, microbeDivVsTime[(warmup + 1):NMCSamples, j,])
+                microbeDivVsTimePlot <- rbind(microbeDivVsTimePlot, microbeDivVsTime[,j,])
             }
             pdf(file   = file.path(currplotdir, 'microbeDivVsTime_boxes.pdf'),
                 width  = 7,
@@ -708,7 +708,7 @@ summarizeLcGLM <- function(combineTrees    = T,
             # host
             hostDivVsTimePlot <- NULL
             for(j in 1:NChains) {
-                hostDivVsTimePlot <- rbind(hostDivVsTimePlot, hostDivVsTime[(warmup + 1):NMCSamples, j,])
+                hostDivVsTimePlot <- rbind(hostDivVsTimePlot, hostDivVsTime[,j,])
             }
             pdf(file   = file.path(currplotdir, 'hostDivVsTime_boxes.pdf'),
                 width  = 7,
@@ -723,7 +723,7 @@ summarizeLcGLM <- function(combineTrees    = T,
             ##
             
             phyloLogVarMultScaled <- array(NA,
-                                           dim = c(NMCSamples,
+                                           dim = c(NMCSamples - warmup,
                                                    NChains,
                                                    NSubfactors + NHostNodes + 1,
                                                    NMicrobeNodes + 1))
@@ -731,7 +731,7 @@ summarizeLcGLM <- function(combineTrees    = T,
             tipPerEdgeMicrobe <- NMicrobeTips / sum(microbeAncestors[1:NMicrobeTips,])
             tipPerEdgeHost <- NHostTips / sum(hostAncestors[[i]][1:NHostTips, ])
 
-            for(j in 1:NMCSamples) {
+            for(j in 1:(NMCSamples - warmup)) {
                 for(k in 1:NChains) {
                     outerFactors <- outer(metaScales[j,k, 1:NSubfactors],
                                           sqrt(microbeDivVsTime[j,k,1] * microbeTreeDetails$edgeLengths) +
@@ -804,7 +804,7 @@ summarizeLcGLM <- function(combineTrees    = T,
                     
                     ## sum the effects
                     matMult <- array(NA,
-                                     dim = c(NMCSamples,
+                                     dim = c(NMCSamples - warmup,
                                              NChains,
                                              NSubfactors + NHostNodes + 1,
                                              NMicrobeNodes + 1),
@@ -816,7 +816,7 @@ summarizeLcGLM <- function(combineTrees    = T,
                                                      microbenode = c('alphaDiversity',
                                                                      colnames(microbeAncestors))))
                                          
-                    for(j in 1:NMCSamples) {
+                    for(j in 1:(NMCSamples - warmup)) {
                         for(k in 1:NChains) {
                             matMult[j,k,,] <- as.matrix(hostMat %*%
                                                         phyloLogVarMultScaled[j,k,,] %*%
@@ -827,10 +827,10 @@ summarizeLcGLM <- function(combineTrees    = T,
                     allRes <- NULL
                     for(j in 1:(NSubfactors + NHostNodes + 1)) {
                         temp <- monitor(array(matMult[,,j,],
-                                              dim = c(NMCSamples,
+                                              dim = c(NMCSamples - warmup,
                                                       NChains,
                                                       NMicrobeNodes + 1)),
-                                        warmup = warmup,
+                                        warmup = 0,
                                         probs  = c(0.05, 0.95),
                                         print  = F)
                         temp <- cbind(hostNode = c('microbePrevalence',
@@ -951,7 +951,7 @@ summarizeLcGLM <- function(combineTrees    = T,
                     cat(paste0(as.character(Sys.time()), '\n'))
                     
                     matMult <- array(NA,
-                                     dim = c(NMCSamples,
+                                     dim = c(NMCSamples - warmup,
                                              NChains,
                                              NHostNodes + NEffects + NSumTo0 + 1,
                                              NMicrobeNodes + 1),
@@ -978,11 +978,11 @@ summarizeLcGLM <- function(combineTrees    = T,
                                                            contrastLevels[[contrast]][['microbe']])))
                     ##
                     
-                    for(j in 1:NMCSamples) {
+                    for(j in 1:(NMCSamples - warmup)) {
                         for(k in 1:NChains) {
                             matMult[j,k,,] <- as.matrix(hostMat %*%
-                                                        rbind(scaledMicrobeNodeEffects[j,k,,],
-                                                              baseLevelEffects[j,k,,]) %*%
+                                                        rbind(scaledMicrobeNodeEffects[warmup + j,k,,],
+                                                              baseLevelEffects[warmup + j,k,,]) %*%
                                                         microbeMat)
                         }
                     }
@@ -990,10 +990,10 @@ summarizeLcGLM <- function(combineTrees    = T,
                     allRes <- NULL
                     for(j in 1:(NHostNodes + NEffects + NSumTo0 + 1)) {
                         temp <- monitor(array(matMult[,,j,],
-                                              dim = c(NMCSamples,
+                                              dim = c(NMCSamples - warmup,
                                                       NChains,
                                                       NMicrobeNodes + 1)),
-                                        warmup = warmup,
+                                        warmup = 0,
                                         probs  = c(0.05, 0.95),
                                         print  = F)
                         temp <- cbind(hostEffect = effectNames[[j]], temp)
@@ -1117,23 +1117,28 @@ runStanModel <- function(noData = F, shuffleData = F, shuffleSamples = F, variat
             setTimeLimit(timeLimit)
             tryCatch({
                 if(!variational) {
-                sampling(object          = sm,
-                         data            = standat[[i]],
-                         control         = list(adapt_delta   = adapt_delta,
-                                                adapt_t0      = adapt_t0,
-                                                adapt_kappa   = adapt_kappa,
-                                                adapt_gamma   = adapt_gamma,
-                                                max_treedepth = max_treedepth),
-                         iter            = NIterations,
-                         thin            = thin,
-                         chains          = NChains,
-                         seed            = seed,
-                         chain_id        = (NChains * (i - 1) + (1:NChains)),
-                         pars            = c('aveStD', 'stDProps', 'aveStDMeta', 'metaScales', 'metaVarProps', 'subfactProps', 'subfactMetaProps', 'microbeNewEdges', 'hostNewEdges'),
-                         include         = TRUE,
-                         init_r          = init_r,
-                         sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
-                         diagnostic_file = file.path(subdir, paste0('diagnostics_chain', i, '.csv')))
+                    res <- sampling(object          = sm,
+                                    data            = standat[[i]],
+                                    control         = list(adapt_delta   = adapt_delta,
+                                                           adapt_t0      = adapt_t0,
+                                                           adapt_kappa   = adapt_kappa,
+                                                           adapt_gamma   = adapt_gamma,
+                                                           max_treedepth = max_treedepth),
+                                    iter            = NIterations,
+                                    thin            = thin,
+                                    chains          = NChains,
+                                    seed            = seed,
+                                    chain_id        = (NChains * (i - 1) + (1:NChains)),
+                                    pars            = c('aveStD', 'stDProps', 'aveStDMeta', 'metaScales', 'metaVarProps', 'subfactProps', 'subfactMetaProps', 'microbeNewEdges', 'hostNewEdges'),
+                                    include         = TRUE,
+                                    init_r          = init_r,
+                                    sample_file     = file.path(subdir, paste0('samples_chain', i, '.csv')),
+                                    diagnostic_file = file.path(subdir, paste0('diagnostics_chain', i, '.csv')))
+                    zip(zipfile = file.path(subdir, paste0('diagnostics_chain', i, '.csv.zip')),
+                        files   = file.path(subdir, paste0('diagnostics_chain', i, '.csv')),
+                        flags   = '-j9Xq')
+                    file.remove(file.path(subdir, paste0('diagnostics_chain', i, '.csv')))
+                    return(res)
                 } else {
                     Sys.sleep((i - 1) * 3 * 60)
                     vb(stan_model(file = modelPath),
